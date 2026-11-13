@@ -12,7 +12,12 @@ LOKI_PORT=13100
 fbq_prepare() {
   # shellcheck disable=SC1091
   source "$root/tools/env.sh"
+  mkdir -p "$FBQ_BUILD"
   python3 "$root/tests/receiver.py" --self-check >/dev/null
+  if ! "$root/tools/build.sh" >"$FBQ_BUILD/test-build.log" 2>&1; then
+    cat "$FBQ_BUILD/test-build.log" >&2
+    return 1
+  fi
   "$root/tools/qemu-up.sh" >/dev/null
   mkdir -p "$FBQ_BUILD"
   local err="$FBQ_BUILD/deploy.err"

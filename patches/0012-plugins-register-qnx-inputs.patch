@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 21:10:00 -0500
+Subject: [PATCH] plugins: register the QNX process and slog2 inputs
+
+The two QNX-only inputs live outside the upstream tree and are copied in
+before configure. Register them next to the other inputs so CMake builds
+each one only when its FLB_IN_* option is on. Both stay off unless the
+QNX build asks for them, so a build that has not turned an option on does
+not look for a directory that is not there yet.
+
+Signed-off-by: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+---
+ plugins/CMakeLists.txt | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/plugins/CMakeLists.txt b/plugins/CMakeLists.txt
+index 1111111..2222222 100644
+--- a/plugins/CMakeLists.txt
++++ b/plugins/CMakeLists.txt
+@@ -283,5 +283,7 @@ REGISTER_IN_PLUGIN("in_emitter")
+ REGISTER_IN_PLUGIN("in_tail")
+ REGISTER_IN_PLUGIN("in_dummy")
++REGISTER_IN_PLUGIN("in_qnx_proc")
++REGISTER_IN_PLUGIN("in_slog2")
+ REGISTER_IN_PLUGIN("in_head")
+ REGISTER_IN_PLUGIN("in_health")
+ REGISTER_IN_PLUGIN("in_http")

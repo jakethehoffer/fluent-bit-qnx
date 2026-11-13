@@ -46,10 +46,28 @@ if [ "$clean" = 1 ] || [ ! -f "$src/.fbq-stamp" ] || [ "$(cat "$src/.fbq-stamp")
   echo "$src_stamp" > "$src/.fbq-stamp"
 fi
 
+# Plugin sources are not in the tarball. Copy them after every extract so a
+# changed .c file is rebuilt by ninja without a second configure.
+if [ -d "$root/plugins" ]; then
+  find "$root/plugins" -type f -print | sort | while IFS= read -r plugin_file; do
+    rel="${plugin_file#"$root/plugins/"}"
+    mkdir -p "$src/plugins/$(dirname "$rel")"
+    cp -f "$plugin_file" "$src/plugins/$rel"
+  done
+fi
+
 # Plain option lines from the file (comments and blank lines dropped).
 mapfile -t options < <(grep -Ev '^[[:space:]]*(#|$)' "$root/qnx/cmake-options.txt")
 
-cfg_stamp="$( { cat "$root/qnx/qnx-x86_64.cmake" "$root/qnx/cmake-options.txt"; echo "$src_stamp"; } | sha256sum | cut -d' ' -f1)"
+cfg_stamp="$( {
+  cat "$root/qnx/qnx-x86_64.cmake" "$root/qnx/cmake-options.txt"
+  echo "$src_stamp"
+  if [ -d "$root/plugins" ]; then
+    find "$root/plugins" -name CMakeLists.txt -print | sort | while IFS= read -r cmake_file; do
+      cat "$cmake_file"
+    done
+  fi
+} | sha256sum | cut -d' ' -f1)"
 if [ ! -f "$bld/build.ninja" ] || [ ! -f "$bld/.fbq-cfg-stamp" ] || [ "$(cat "$bld/.fbq-cfg-stamp")" != "$cfg_stamp" ]; then
   echo "== Configuring (several minutes: bundled libraries are probed with qcc)"
   mkdir -p "$bld"
@@ -73,6 +91,15 @@ echo "== Building (ninja -j$jobs)"
 ninja -C "$bld" -j"$jobs" > "$FBQ_BUILD/build.log" 2>&1 \
   || { tail -60 "$FBQ_BUILD/build.log" >&2; echo "build failed, see $FBQ_BUILD/build.log" >&2; exit 1; }
 tail -1 "$FBQ_BUILD/build.log"
+
+mkdir -p "$FBQ_BUILD/bin"
+for helper in "$root"/tests/helpers/*.c; do
+  [ -f "$helper" ] || continue
+  helper_name="$(basename "$helper" .c)"
+  echo "== helper $helper_name"
+  qcc -Vgcc_ntox86_64 -O2 -Wall -Wextra -Werror \
+    -o "$FBQ_BUILD/bin/$helper_name" "$helper"
+done
 
 mkdir -p "$FBQ_BUILD/bin"
 cp -f "$bld/bin/fluent-bit" "$FBQ_BUILD/bin/fluent-bit.unstripped"

@@ -26,6 +26,14 @@ fbq_ssh "mkdir -p $dir/bin $dir/lib"
 fbq_scp "$bin" "$dir/bin/fluent-bit.new" >/dev/null
 fbq_ssh "chmod 755 $dir/bin/fluent-bit.new && mv -f $dir/bin/fluent-bit.new $dir/bin/fluent-bit"
 
+for extra in memhog spinner slog2_emit; do
+  host_extra="$FBQ_BUILD/bin/$extra"
+  [ -f "$host_extra" ] || continue
+  fbq_scp "$host_extra" "$dir/bin/$extra.new" >/dev/null
+  fbq_ssh "chmod 755 $dir/bin/$extra.new && mv -f $dir/bin/$extra.new $dir/bin/$extra"
+  echo "deployed helper $extra" >&2
+done
+
 while IFS= read -r lib; do
   lib="${lib%%#*}"
   lib="$(echo "$lib" | tr -d '[:space:]')"
