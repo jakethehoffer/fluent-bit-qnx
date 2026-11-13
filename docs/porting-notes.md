@@ -75,7 +75,7 @@ Features on
 - `FLB_TLS=On`: uses the SDP's OpenSSL 3 (`libssl.so.3`, `libcrypto.so.3`); "TLS backend selected: openssl".
 - `FLB_INOTIFY=On`: tail's inotify mode, provided on QNX by `libfsnotify`.
 - `FLB_SQLDB=On`: the bundled sqlite that tail's `db=` offset file uses.
-- `FLB_HTTP_SERVER=On`: the built-in HTTP server (metrics, health); the test configs use `http_server on`.
+- `FLB_HTTP_SERVER=On`: the built-in HTTP server (metrics, health) is compiled in. The shipped configs leave it off.
 - `FLB_IN_STORAGE_BACKLOG=On`: filesystem storage creates this input to read chunks back after they have been put down. `FLB_MINIMAL` switches it off, and the engine then refuses to start (`cannot init storage backlog input plugin`).
 
 `tools/build.sh` also verifies after configure that `FLB_HAVE_ACCEPT4`, `FLB_HAVE_INOTIFY` and

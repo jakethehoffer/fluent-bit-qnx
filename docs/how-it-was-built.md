@@ -14,7 +14,7 @@ The spike did not show TLS to a real endpoint, tail `db=`, rotation, filesystem 
 
 ## What landed
 
-`git log` on `main`, oldest first:
+The commits through the demo, oldest first. The table stops at the demo commit.
 
 | Commit | Subject |
 | --- | --- |

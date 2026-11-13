@@ -36,7 +36,10 @@ fluent_bit_version() {
   local out token
   token=""
   if [ "$build_rc" -eq 0 ]; then
-    out="$(timeout 30 fbq_ssh "$FBQ_TARGET_DIR/bin/fluent-bit" --version 2>&1 || true)"
+    # timeout(1) runs a program. fbq_ssh is a shell function, so call ssh
+    # with the same options the function uses.
+    # shellcheck disable=SC2086
+    out="$(timeout 30 ssh $FBQ_SSH_OPTS root@127.0.0.1 "$FBQ_TARGET_DIR/bin/fluent-bit" --version 2>&1 || true)"
     token="$(printf '%s\n' "$out" | sed -n 's/^Fluent Bit v\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1 || true)"
     if [ -z "$token" ] && [ -f "$FBQ_BUILD/bin/fluent-bit" ]; then
       out="$(strings "$FBQ_BUILD/bin/fluent-bit" 2>/dev/null | grep -F 'Fluent Bit v' | head -n 1 || true)"

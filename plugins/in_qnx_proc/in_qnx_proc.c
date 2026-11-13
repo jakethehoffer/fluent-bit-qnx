@@ -258,6 +258,26 @@ static int in_qnx_proc_collect(struct flb_input_instance *ins,
     return 0;
 }
 
+/* Init already published ctx. Clear it before freeing so a later exit
+ * callback does not free the same block or regfree the same expression. */
+static int init_fail(struct flb_in_qnx_proc *ctx)
+{
+    struct flb_input_instance *ins;
+
+    ins = ctx->ins;
+    flb_input_set_context(ins, NULL);
+    if (ctx->encoder != NULL) {
+        flb_log_event_encoder_destroy(ctx->encoder);
+        ctx->encoder = NULL;
+    }
+    if (ctx->have_re) {
+        regfree(&ctx->re);
+        ctx->have_re = 0;
+    }
+    flb_free(ctx);
+    return -1;
+}
+
 static int in_qnx_proc_init(struct flb_input_instance *ins,
                             struct flb_config *config,
                             void *data)
@@ -276,8 +296,7 @@ static int in_qnx_proc_init(struct flb_input_instance *ins,
 
     ret = flb_input_config_map_set(ins, ctx);
     if (ret < 0) {
-        flb_free(ctx);
-        return -1;
+        return init_fail(ctx);
     }
     if (ctx->interval_sec == 0 && ctx->interval_nsec == 0) {
         ctx->interval_sec = 1;
@@ -285,8 +304,7 @@ static int in_qnx_proc_init(struct flb_input_instance *ins,
     if (ctx->match != NULL && ctx->match[0] != '\0') {
         if (regcomp(&ctx->re, ctx->match, REG_EXTENDED | REG_NOSUB) != 0) {
             flb_plg_error(ins, "match is not a valid regular expression");
-            flb_free(ctx);
-            return -1;
+            return init_fail(ctx);
         }
         ctx->have_re = 1;
     }
@@ -294,23 +312,14 @@ static int in_qnx_proc_init(struct flb_input_instance *ins,
     ctx->encoder = flb_log_event_encoder_create(FLB_LOG_EVENT_FORMAT_DEFAULT);
     if (!ctx->encoder) {
         flb_plg_error(ins, "cannot create event encoder");
-        if (ctx->have_re) {
-            regfree(&ctx->re);
-        }
-        flb_free(ctx);
-        return -1;
+        return init_fail(ctx);
     }
     ret = flb_input_set_collector_time(ins, in_qnx_proc_collect,
                                        ctx->interval_sec, ctx->interval_nsec,
                                        config);
     if (ret < 0) {
         flb_plg_error(ins, "cannot set collector");
-        flb_log_event_encoder_destroy(ctx->encoder);
-        if (ctx->have_re) {
-            regfree(&ctx->re);
-        }
-        flb_free(ctx);
-        return -1;
+        return init_fail(ctx);
     }
     ctx->coll_fd = ret;
     return 0;
@@ -337,6 +346,9 @@ static int in_qnx_proc_exit(void *data, struct flb_config *config)
     struct flb_in_qnx_proc *ctx = data;
 
     (void) config;
+    if (ctx == NULL) {
+        return 0;
+    }
     if (ctx->have_re) {
         regfree(&ctx->re);
     }

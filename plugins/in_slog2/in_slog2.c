@@ -229,20 +229,12 @@ static void copy_message(char *dst, size_t dst_len, uint16_t data_size,
         return;
     }
     dst[0] = '\0';
-    if (src == NULL) {
+    if (src == NULL || data_size == 0) {
         return;
     }
-    if (data_size == 0) {
-        n = 0;
-        while (n + 1 < dst_len && src[n] != '\0') {
-            n++;
-        }
-    }
-    else {
-        n = data_size;
-        if (n >= dst_len) {
-            n = dst_len - 1;
-        }
+    n = data_size;
+    if (n >= dst_len) {
+        n = dst_len - 1;
     }
     memcpy(dst, src, n);
     dst[n] = '\0';
@@ -350,10 +342,13 @@ static int on_packet(slog2_packet_info_t *info, void *payload, void *param)
 static void *parse_thread(void *arg)
 {
     struct flb_slog2_shared *sh = arg;
+    struct flb_input_instance *ins;
     slog2_packet_info_t info;
     uint32_t flags;
     char *match;
     int gone;
+    int ret;
+    int stopped;
 
     memset(&info, 0, sizeof(info));
     info.size = sizeof(info);
@@ -366,7 +361,15 @@ static void *parse_thread(void *arg)
         flags |= SLOG2_PARSE_FLAGS_CURRENT;
     }
     match = sh->match_api[0] != '\0' ? sh->match_api : NULL;
-    (void) slog2_parse_all(flags, NULL, match, &info, on_packet, sh);
+    ret = slog2_parse_all(flags, NULL, match, &info, on_packet, sh);
+
+    pthread_mutex_lock(&sh->lock);
+    stopped = sh->stop || sh->plugin_gone;
+    ins = sh->ins;
+    pthread_mutex_unlock(&sh->lock);
+    if (ret != 0 && !stopped && ins != NULL) {
+        flb_plg_error(ins, "slog2_parse_all failed");
+    }
 
     pthread_mutex_lock(&sh->lock);
     sh->thread_done = 1;
@@ -439,6 +442,31 @@ static int in_slog2_collect(struct flb_input_instance *ins,
         return 0;
     }
     while (flb_pipe_r(ctx->pipe_r, junk, sizeof(junk)) > 0) {
+    }
+
+    {
+        uint64_t dropped;
+        uint64_t skipped;
+        int report;
+
+        dropped = 0;
+        skipped = 0;
+        report = 0;
+        pthread_mutex_lock(&sh->lock);
+        if (sh->dropped != ctx->logged_dropped ||
+            sh->skipped != ctx->logged_skipped) {
+            dropped = sh->dropped;
+            skipped = sh->skipped;
+            report = 1;
+        }
+        pthread_mutex_unlock(&sh->lock);
+        if (report) {
+            ctx->logged_dropped = dropped;
+            ctx->logged_skipped = skipped;
+            flb_plg_warn(ctx->ins, "slog2 dropped %llu, skipped %llu",
+                         (unsigned long long) dropped,
+                         (unsigned long long) skipped);
+        }
     }
 
     for (;;) {
@@ -522,6 +550,7 @@ static void in_slog2_stop(struct flb_in_slog2 *ctx)
             pthread_mutex_lock(&sh->lock);
             sh->stop = 1;
             sh->plugin_gone = 1;
+            sh->ins = NULL;
             fd = sh->wake_fd;
             sh->wake_fd = -1;
             done = sh->thread_done;
@@ -639,6 +668,7 @@ static int in_slog2_init(struct flb_input_instance *ins,
         return init_fail(ctx);
     }
     sh->wake_fd = ctx->pipe_w;
+    sh->ins = ins;
     sh->from_now = ctx->from_now ? 1 : 0;
     sh->poll_interval_ms = ctx->poll_interval_ms;
     sanitize_match_list(sh->match_api, sizeof(sh->match_api), ctx->match);

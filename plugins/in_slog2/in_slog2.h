@@ -37,6 +37,7 @@ struct flb_slog2_shared {
     int plugin_gone;
     int thread_done;
     int wake_fd;
+    struct flb_input_instance *ins;
     int from_now;
     int poll_interval_ms;
     uint64_t dropped;
@@ -54,6 +55,8 @@ struct flb_in_slog2 {
     struct flb_log_event_encoder *encoder;
     struct flb_input_instance *ins;
     struct flb_slog2_shared *shared;
+    uint64_t logged_dropped;
+    uint64_t logged_skipped;
     pthread_t thread;
     int thread_started;
     int coll_fd;

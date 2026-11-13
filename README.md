@@ -51,7 +51,7 @@ tools/deploy.sh
 tools/demo.sh
 ```
 
-`tools/demo.sh` prints `http://127.0.0.1:3000/d/qnx-fleet/qnx-fleet`. The same path with no browser is:
+`tools/demo.sh` prints `http://127.0.0.1:3000/d/qnx-fleet/qnx-fleet`. That address is live only while `tools/demo.sh` is still running, because the script stops the charts on the way out. The same path with no browser is:
 
 ```bash
 tools/demo-check.sh
@@ -93,7 +93,7 @@ Config keys in [`plugins/in_qnx_proc/in_qnx_proc.c`](plugins/in_qnx_proc/in_qnx_
 | --- | --- | --- |
 | `interval_sec` | `5` | Seconds between process scans |
 | `interval_nsec` | `0` | Extra nanoseconds between scans |
-| `match` | empty | POSIX extended regular expression applied to the process name. Empty reports every process it can read |
+| `match` | empty | POSIX extended regular expression applied to the process name. Empty reports every process it can read. The plugin skips its own process unless `include_self` is on |
 | `include_self` | `false` | Also report this Fluent Bit process |
 
 Record fields: `pid`, `name`, `threads`, `cpu_ns`, `cpu_user_ns`, `cpu_system_ns`, `mem_private_bytes`.
