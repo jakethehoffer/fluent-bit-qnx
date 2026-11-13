@@ -168,24 +168,39 @@ if kind == "lines":
         if rec.get("buffer_set") != "fbq-test" or rec.get("message") != text:
             fail("%s record %s" % (text, rec))
 elif kind == "skip":
-    hist = [message(rec) for rec in recs if isinstance(message(rec), str) and message(rec).startswith("history-")]
-    live = [rec for rec in recs if isinstance(message(rec), str) and message(rec).startswith("live-")]
-    if hist:
-        fail("history delivered: %s" % hist)
+    # argv[3] is this run held prefix, argv[4] the lines written after start.
+    # Older packets in the same buffer use other prefixes and are ignored.
+    hist_prefix = sys.argv[3]
+    live_prefix = sys.argv[4]
+    held = [message(rec) for rec in recs
+            if isinstance(message(rec), str) and message(rec).startswith(hist_prefix + "-")]
+    if held:
+        fail("history delivered: %s" % held)
+    live = [rec for rec in recs
+            if isinstance(message(rec), str) and message(rec).startswith(live_prefix + "-")]
     got = [message(rec) for rec in live]
-    want = numbered("live", 4)
+    want = numbered(live_prefix, 4)
     if sorted(got) != sorted(want):
         fail("live %s" % got)
+    for text in want:
+        if got.count(text) != 1:
+            fail("%s count %s" % (text, got.count(text)))
     for rec in live:
         if rec.get("buffer_set") != "fbq-test":
             fail("live buffer_set %s" % rec.get("buffer_set"))
 elif kind == "keep":
-    got = [message(rec) for rec in recs if isinstance(message(rec), str) and message(rec).startswith("history-")]
-    want = numbered("history", 4)
+    hist_prefix = sys.argv[3]
+    want = numbered(hist_prefix, 4)
+    got = [message(rec) for rec in recs
+           if isinstance(message(rec), str) and message(rec).startswith(hist_prefix + "-")]
     if sorted(got) != sorted(want):
         fail("history %s" % got)
+    for text in want:
+        if got.count(text) != 1:
+            fail("%s count %s" % (text, got.count(text)))
     for rec in recs:
-        if isinstance(message(rec), str) and message(rec).startswith("history-") and rec.get("buffer_set") != "fbq-test":
+        text = message(rec)
+        if isinstance(text, str) and text.startswith(hist_prefix + "-") and rec.get("buffer_set") != "fbq-test":
             fail("history buffer_set %s" % rec.get("buffer_set"))
 elif kind == "match":
     other = []
@@ -212,15 +227,16 @@ else:
 wait_kind() {
   local kind="$1"
   local secs="$2"
+  shift 2
   local i=0
   while [ "$i" -lt "$secs" ]; do
-    if python3 -c "$check_py" "$OUT" "$kind" >/dev/null 2>&1; then
+    if python3 -c "$check_py" "$OUT" "$kind" "$@" >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
     i=$((i + 1))
   done
-  python3 -c "$check_py" "$OUT" "$kind" || true
+  python3 -c "$check_py" "$OUT" "$kind" "$@" || true
   show_case
   return 1
 }
@@ -252,6 +268,7 @@ slog2_lines_arrive_with_severity() {
 }
 
 slog2_from_now_skips_history() {
+  local run_id hist_prefix live_prefix
   begin_case
   trap 'stop_emits; stop_fb >/dev/null 2>&1 || true; stop_receiver || true' EXIT
   stop_emits
@@ -259,16 +276,21 @@ slog2_from_now_skips_history() {
   # Starting here makes a missing slog2 input fail before the helper matters.
   start_fb "$root/tests/configs/slog2.conf" || return 1
   stop_fb
+  # fbq-test keeps packets after the helper exits. A new prefix means an
+  # earlier run's history-01 lines can neither satisfy nor fail this check.
+  run_id="$(python3 -c 'import secrets; print(secrets.token_hex(4))')"
+  hist_prefix="h${run_id}"
+  live_prefix="v${run_id}"
   start_emit fbq-test hist || return 1
-  emit_cmd hist "log history 4" || return 1
+  emit_cmd hist "log ${hist_prefix} 4" || return 1
   sleep 1
   start_fb "$root/tests/configs/slog2.conf" || return 1
-  emit_cmd hist "log live 4" || return 1
-  wait_kind skip 20
+  emit_cmd hist "log ${live_prefix} 4" || return 1
+  wait_kind skip 20 "$hist_prefix" "$live_prefix"
   stop_fb
   : >"$OUT"
   start_fb "$root/tests/configs/slog2-history.conf" || return 1
-  wait_kind keep 20
+  wait_kind keep 20 "$hist_prefix"
 }
 
 slog2_match_filters_buffer_sets() {

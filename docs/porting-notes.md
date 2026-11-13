@@ -74,6 +74,7 @@ Features on
 - `FLB_INOTIFY=On`: tail's inotify mode, provided on QNX by `libfsnotify`.
 - `FLB_SQLDB=On`: the bundled sqlite that tail's `db=` offset file uses.
 - `FLB_HTTP_SERVER=On`: the built-in HTTP server (metrics, health); the test configs use `http_server on`.
+- `FLB_IN_STORAGE_BACKLOG=On`: filesystem storage creates this input to read chunks back after they have been put down. `FLB_MINIMAL` switches it off, and the engine then refuses to start (`cannot init storage backlog input plugin`).
 
 `tools/build.sh` also verifies after configure that `FLB_HAVE_ACCEPT4`, `FLB_HAVE_INOTIFY` and
 `FLB_HAVE_UNIX_SOCKET` are 1 in `CMakeCache.txt`. If a probe is negative the build stops, because
@@ -93,6 +94,14 @@ QNX (no `getentropy()`); Fluent Bit has a fallback.
 ## Known gaps
 
 - x86_64 only; aarch64 is untested.
-- Not exercised yet: TLS to a real endpoint, `out_loki`, tail `db=`, rotation, filesystem storage restart.
+- Not exercised yet: TLS to a real endpoint, tail `db=`, rotation, filesystem storage restart.
 - Unix-socket peer pid is unavailable (0009).
 - Compiler warnings (46 in the spike build) have not been triaged.
+
+## Running on a real-time system
+
+`qnx/fluent-bit.conf` is the agent the demo starts. `tools/start-agent.sh` copies it to the target and `tools/stop-agent.sh` stops that process. The inputs are `slog2` (every buffer set, from now) and `qnx_proc`. Each has `mem_buf_limit 5M` and `storage.type filesystem`. The service sets `storage.max_chunks_up 128` and `storage.path` to `$FBQ_TARGET_DIR/storage`, which is `/data/fluent-bit-qnx/storage` unless that variable was overridden. The reference file contains `__TARGET_DIR__/storage`. start-agent writes the real directory into the copy on the machine. Fluent Bit does not expand shell variables, so leaving `$FBQ_TARGET_DIR` in the file would be a literal path.
+
+The Loki output uses host `10.0.2.2`, port `3100`, and `labels job=fluent-bit-qnx` (the same label as `tests/configs/tail-loki.conf`). When `FBQ_LOKI_HOST` or `FBQ_LOKI_PORT` is set, start-agent writes that value instead. `retry_limit false` keeps a chunk that could not be sent and tries it again, so records stay on disk while the receiver is down and are delivered once it is back. `tests/test_service.sh` covers that path. Reloading chunks after a process restart is still the filesystem-storage gap noted above.
+
+QNX runs the higher priority number first. start-agent launches Fluent Bit with `on -p 8`, so the usual priority 10 work is scheduled ahead of log shipping. `FBQ_PRIORITY` overrides 8. Threads inherit that priority; the service test reads every thread of the fluent-bit pid with `pidin`. The process log is `$FBQ_TARGET_DIR/agent.log`. stop-agent sends SIGTERM and waits until the process has exited 0 and `pidin` no longer lists `fluent-bit`. Test helpers that start Fluent Bit themselves still use priority 10.
