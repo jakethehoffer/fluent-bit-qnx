@@ -1,0 +1,23 @@
+fluent-bit: 5.2.0
+patches: 12
+qnx-toolchain: ntox86_64-gcc (QNX8.0.0-rfe1c11236e8a392fdc575fe111bbc8aa4f10d82b-500) 12.2.0
+
+check-patches ok
+build ok
+http_delivers_dummy_records ok
+tail_delivers_appended_lines_in_order ok
+forward_delivers_every_tail_line ok
+loki_push_received ok
+two_workers_shutdown_clean ok
+proc_reports_named_process ok
+proc_cpu_increases_for_spinner ok
+proc_match_filters_names ok
+proc_survives_short_lived_processes ok
+agent_runs_at_configured_priority ok
+agent_buffers_while_receiver_down_then_delivers ok
+agent_stops_cleanly ok
+slog2_lines_arrive_with_severity ok
+slog2_from_now_skips_history ok
+slog2_match_filters_buffer_sets ok
+slog2_shutdown_is_clean ok
+demo-check ok

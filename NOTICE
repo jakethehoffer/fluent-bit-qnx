@@ -14,3 +14,6 @@ license as Fluent Bit (Apache-2.0). Each patch carries a Signed-off-by line
 
 QNX and QNX Software Development Platform are trademarks of BlackBerry Limited. This
 repository does not contain or redistribute any QNX software, headers or libraries.
+
+tools/qemu-up.sh is copied from the same author's qnx-ipc tools/qemu-up.sh, under
+Apache-2.0: https://github.com/jakethehoffer/qnx-ipc

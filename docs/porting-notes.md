@@ -30,10 +30,12 @@ bundled libraries under `lib/` are only edited with maintainer agreement.
 | 0009 | `src/flb_network.c` | No `SO_PEERCRED` and no `struct ucred` in `<sys/socket.h>`. | Compile the unix-socket peer pid code out on QNX like macOS and FreeBSD; no peer pid is reported. | Yes |
 | 0010 | `plugins/in_tail/tail_file.c` | No `/proc/<pid>/fd/<n>` symlink to turn an open fd into a path. | `iofdinfo(fd, _FDINFO_FLAG_LOCALPATH, ...)` from `<sys/iomgr.h>`, failing on error or a truncated path. The terminator is written as `'\0'` (the spike's version had a literal NUL byte there; `tools/check-patches.sh` now rejects that). | Yes |
 | 0011 | `plugins/in_tail/tail_fs_inotify.c` | The QNX fsevmgr answers `EINVAL` when `IN_IGNORED` or `IN_Q_OVERFLOW` (event-only bits) are in the request mask, so no watch is added. | Request `IN_ATTRIB \| IN_MODIFY` only on QNX; the other bits are still delivered in events. | Yes |
+| 0012 | `plugins/CMakeLists.txt` | The two QNX inputs are not in the upstream tarball. | Register `in_qnx_proc` and `in_slog2`. `tools/build.sh` copies `plugins/` into the tree before configure. | The two lines are ordinary registration. An upstream series would also add the plugin sources. |
 
-The set came from the feasibility spike (11 edit sets across 12 files). The series was checked
-to produce, file for file, the same source tree as the spike's patched tree, except for the
-NUL byte fix in 0010.
+The set 0001-0011 came from the feasibility spike (11 edit sets across 12 files). That part of
+the series was checked to produce, file for file, the same source tree as the spike's patched
+tree, except for the NUL byte fix in 0010. 0012 is later: it only registers the inputs whose
+sources live in this repo.
 
 ## CMake options (`qnx/cmake-options.txt`)
 
@@ -94,9 +96,11 @@ QNX (no `getentropy()`); Fluent Bit has a fallback.
 ## Known gaps
 
 - x86_64 only; aarch64 is untested.
-- Not exercised yet: TLS to a real endpoint, tail `db=`, rotation, filesystem storage restart.
+- Not exercised yet: TLS to a real endpoint, tail `db=`, rotation, and saved chunks coming back after a restart.
 - Unix-socket peer pid is unavailable (0009).
 - Compiler warnings (46 in the spike build) have not been triaged.
+- A live process-name list is still open. The dashboard `name` control is a fixed value.
+- A colored NOTICE line is still open. `in_slog2` maps the NOTICE severity; `slog2_lines_arrive_with_severity` checks INFO, WARNING, and ERROR.
 
 ## Running on a real-time system
 
