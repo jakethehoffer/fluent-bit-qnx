@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 12:01:00 -0500
+Subject: [PATCH] build: add QNX detection and link libsocket and libfsnotify
+
+On QNX the BSD socket calls (accept4(), ...) are exported by libsocket.so.4
+and the inotify calls by libfsnotify.so.1, not by libc. <sys/socket.h> and
+<sys/inotify.h> declare them, but a program that does not link the two
+libraries gets undefined references.
+
+The same is true for the configure-time probes (FLB_HAVE_ACCEPT4,
+FLB_HAVE_INOTIFY, FLB_HAVE_UNIX_SOCKET): their test programs fail to link
+unless both libraries are in CMAKE_REQUIRED_LIBRARIES, so the features are
+wrongly detected as missing.
+
+Define FLB_SYSTEM_QNX when CMAKE_SYSTEM_NAME is QNX, add the two libraries to
+CMAKE_REQUIRED_LIBRARIES before any probe runs, and link them for every
+target. Other systems are unaffected.
+
+Signed-off-by: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+---
+ CMakeLists.txt | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 78ab87c..13f92b7 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -41,6 +41,15 @@ if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+   add_definitions(-DFLB_SYSTEM_MACOS)
+ endif()
+ 
++# Define macro to identify QNX Neutrino (SDP 8.0)
++if(CMAKE_SYSTEM_NAME STREQUAL "QNX")
++  set(FLB_SYSTEM_QNX On)
++  add_definitions(-DFLB_SYSTEM_QNX)
++  # BSD sockets live in libsocket and inotify in libfsnotify on QNX
++  list(APPEND CMAKE_REQUIRED_LIBRARIES socket fsnotify)
++  link_libraries(socket fsnotify)
++endif()
++
+ # Define macro to identify Linux system
+ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+   set(FLB_SYSTEM_LINUX On)

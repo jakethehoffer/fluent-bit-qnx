@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 12:04:00 -0500
+Subject: [PATCH] chunkio: take byte-order helpers from gulliver.h on QNX
+
+The bundled crc32 code needs htole16(), le16toh(), htobe16(), be16toh() and
+__BYTE_ORDER. The QNX SDP 8.0 has neither <endian.h> nor <sys/endian.h>.
+Its byte-order helpers are ENDIAN_LE16() and ENDIAN_BE16() in <gulliver.h>,
+selected by __LITTLEENDIAN__ or __BIGENDIAN__.
+
+Add a QNX branch that maps the missing names onto the gulliver.h macros and
+defines __BYTE_ORDER from __BIGENDIAN__.
+
+Signed-off-by: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+---
+ lib/chunkio/deps/crc32/crc32.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/lib/chunkio/deps/crc32/crc32.c b/lib/chunkio/deps/crc32/crc32.c
+index 58b3912..f38388e 100644
+--- a/lib/chunkio/deps/crc32/crc32.c
++++ b/lib/chunkio/deps/crc32/crc32.c
+@@ -51,6 +51,19 @@
+ #   define BYTE_ORDER LITTLE_ENDIAN
+ #  endif
+ # endif
++#elif defined(__QNXNTO__)
++#  include <gulliver.h>
++#  define htole16(x) ENDIAN_LE16(x)
++#  define le16toh(x) ENDIAN_LE16(x)
++#  define htobe16(x) ENDIAN_BE16(x)
++#  define be16toh(x) ENDIAN_BE16(x)
++#  define __BIG_ENDIAN 4321
++#  define __LITTLE_ENDIAN 1234
++#  if defined(__BIGENDIAN__)
++#    define __BYTE_ORDER __BIG_ENDIAN
++#  else
++#    define __BYTE_ORDER __LITTLE_ENDIAN
++#  endif
+ #else
+ #  include <endian.h>
+ #endif

@@ -1,0 +1,38 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 12:07:00 -0500
+Subject: [PATCH] chunkio: use ftw(3) for recursive delete on QNX
+
+cio_utils_recursive_delete() uses fts(3) from <fts.h> on POSIX systems. The
+QNX SDP 8.0 has no <fts.h>, but it does have <ftw.h> with nftw() and
+FTW_DEPTH/FTW_PHYS, which the Emscripten code path already uses.
+
+Select the nftw() based implementation on QNX as well.
+
+Signed-off-by: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+---
+ lib/chunkio/src/cio_utils.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/lib/chunkio/src/cio_utils.c b/lib/chunkio/src/cio_utils.c
+index 0a63cc8..11386ca 100644
+--- a/lib/chunkio/src/cio_utils.c
++++ b/lib/chunkio/src/cio_utils.c
+@@ -26,7 +26,7 @@
+ #include <fcntl.h>
+ #include <errno.h>
+ #include <chunkio/cio_info.h>
+-#if defined(CIO_HAVE_BACKEND_FILESYSTEM) && defined(__EMSCRIPTEN__)
++#if defined(CIO_HAVE_BACKEND_FILESYSTEM) && (defined(__EMSCRIPTEN__) || defined(__QNXNTO__))
+ #include <ftw.h>
+ #elif defined(CIO_HAVE_BACKEND_FILESYSTEM) && !defined(_WIN32)
+ #include <fts.h>
+@@ -43,7 +43,7 @@ int cio_utils_recursive_delete(const char *dir)
+     errno = ENOSYS;
+     return CIO_ERROR;
+ }
+-#elif defined(__EMSCRIPTEN__)
++#elif defined(__EMSCRIPTEN__) || defined(__QNXNTO__)
+ static int cio_utils_remove_entry(const char *path, const struct stat *st,
+                                   int type, struct FTW *walk)
+ {

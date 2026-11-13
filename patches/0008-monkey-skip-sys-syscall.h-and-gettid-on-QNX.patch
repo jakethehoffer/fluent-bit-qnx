@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 12:08:00 -0500
+Subject: [PATCH] monkey: skip sys/syscall.h and gettid on QNX
+
+mk_scheduler.c includes <sys/syscall.h> on every non-Windows system to get
+__NR_gettid. The QNX SDP 8.0 has no <sys/syscall.h> and no gettid syscall.
+
+Skip the include on QNX and use pthread_self() for the worker label stored
+in worker->pid. QNX thread ids are per process, which is enough: the value
+only names the worker in logs.
+
+Signed-off-by: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+---
+ lib/monkey/mk_server/mk_scheduler.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/lib/monkey/mk_server/mk_scheduler.c b/lib/monkey/mk_server/mk_scheduler.c
+index f359b6f..d7b2b8a 100644
+--- a/lib/monkey/mk_server/mk_scheduler.c
++++ b/lib/monkey/mk_server/mk_scheduler.c
+@@ -38,7 +38,7 @@
+ 
+ #include <signal.h>
+ 
+-#ifndef _WIN32
++#if !defined(_WIN32) && !defined(__QNXNTO__)
+ #include <sys/syscall.h>
+ #endif
+ 
+@@ -291,6 +291,8 @@ static int mk_sched_register_thread(struct mk_server *server)
+     uint64_t tid;
+     pthread_threadid_np(NULL, &tid);
+     worker->pid = tid;
++#elif defined(__QNXNTO__)
++    worker->pid = (pid_t) pthread_self(); /* QNX tids are per-process */
+ #else
+     worker->pid = 0xdeadbeef;
+ #endif

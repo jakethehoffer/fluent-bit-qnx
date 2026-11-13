@@ -1,0 +1,47 @@
+# CMake options for tools/build.sh, one per line, passed after the toolchain file.
+# Lines starting with # and blank lines are ignored. The reason for each is in
+# docs/porting-notes.md (kept in the same order).
+
+# Generic
+-DCMAKE_BUILD_TYPE=Release
+-DFLB_RELEASE=On
+-DFLB_DEBUG=Off
+
+# Plugin selection: FLB_MINIMAL switches the default plugin set off, then enable what is needed.
+-DFLB_MINIMAL=On
+-DFLB_IN_DUMMY=On
+-DFLB_IN_TAIL=On
+-DFLB_OUT_STDOUT=On
+-DFLB_OUT_HTTP=On
+-DFLB_OUT_FORWARD=On
+-DFLB_OUT_LOKI=On
+
+# Event loop: the SDP has no epoll, kqueue, timerfd, eventfd or signalfd.
+-DFLB_EVENT_LOOP_POLL=On
+
+# Features off
+-DFLB_LUAJIT=Off
+-DFLB_WASM=Off
+-DFLB_JEMALLOC=Off
+-DFLB_BACKTRACE=Off
+-DFLB_KAFKA=Off
+-DFLB_AWS=Off
+-DFLB_SIGNV4=Off
+-DFLB_ZIG=Off
+-DFLB_PROXY_GO=Off
+-DFLB_CUSTOM_CALYPTIA=Off
+-DFLB_STREAM_PROCESSOR=Off
+-DFLB_PROFILES=Off
+-DFLB_RIPSER=Off
+-DFLB_EXAMPLES=Off
+-DFLB_SHARED_LIB=Off
+-DFLB_TESTS_RUNTIME=Off
+-DFLB_TESTS_INTERNAL=Off
+-DFLB_CONFIG_YAML=Off
+-DFLB_USE_SIMDUTF=No
+
+# Features on
+-DFLB_TLS=On
+-DFLB_INOTIFY=On
+-DFLB_SQLDB=On
+-DFLB_HTTP_SERVER=On

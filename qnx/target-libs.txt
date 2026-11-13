@@ -1,0 +1,10 @@
+# Runtime libraries the fluent-bit binary needs that are NOT in the QNX 8.0 QEMU target image.
+# tools/deploy.sh copies each one from $QNX_TARGET/x86_64/... to $FBQ_TARGET_DIR/lib on the
+# target (never into this repo). One path per line, relative to $QNX_TARGET/x86_64.
+#
+# Currently empty on purpose. Checked 2026-11-12 on the qnx-ipc QEMU image with ldd on the
+# target: every library fluent-bit lists as NEEDED resolves from the image itself:
+#   libsocket.so.4 libfsnotify.so.1 libm.so.3 libcrypto.so.3 libc.so.6 libgcc_s.so.1  (/proc/boot)
+#   libssl.so.3                                                                       (/system/lib)
+# Later plugins add libraries (libslog2parse.so.1 for in_slog2): check them the same way
+# and list here any that the image lacks, for example "usr/lib/libslog2parse.so.1".

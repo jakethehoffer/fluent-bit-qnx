@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 12:05:00 -0500
+Subject: [PATCH] snappy: take byte-order helpers from gulliver.h on QNX
+
+snappy's compat.h includes <endian.h> on every system that is not FreeBSD,
+macOS or Windows to get htole16() and le32toh(). The QNX SDP 8.0 has no
+<endian.h>; the equivalent macros are ENDIAN_LE16() and ENDIAN_LE32() in
+<gulliver.h>.
+
+Add a QNX branch that defines the two names from gulliver.h.
+
+Signed-off-by: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+---
+ lib/snappy-fef67ac/compat.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/lib/snappy-fef67ac/compat.h b/lib/snappy-fef67ac/compat.h
+index 3b755f4..4e71fa3 100644
+--- a/lib/snappy-fef67ac/compat.h
++++ b/lib/snappy-fef67ac/compat.h
+@@ -18,6 +18,10 @@
+ #endif
+ 
+ 
++#elif defined(__QNXNTO__)
++#  include <gulliver.h>
++#  define	htole16(x) ENDIAN_LE16(x)
++#  define	le32toh(x) ENDIAN_LE32(x)
+ #elif !defined(__WIN32__)
+ #  include <endian.h>
+ #endif

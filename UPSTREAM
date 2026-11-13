@@ -1,0 +1,11 @@
+# Pinned upstream. Read by tools/fetch-upstream.sh, tools/build.sh and tools/check-patches.sh.
+# Plain KEY=value lines (no quotes, no spaces around "=").
+# Upstream source is never committed; it is downloaded, checked against FB_SHA256 and
+# extracted under $FBQ_BUILD/src. Project: https://github.com/fluent/fluent-bit (Apache-2.0).
+FB_VERSION=5.2.0
+FB_TAG=v5.2.0
+FB_URL=https://github.com/fluent/fluent-bit/archive/refs/tags/v5.2.0.tar.gz
+FB_SHA256=7f1b92ed09e43c33d8c572bc1643ad0e797f129286468faf85ac56beed6cccad
+# Commit the tag points to (also embedded in the tarball: gzip -dc <tarball> | git get-tar-commit-id).
+# GitHub does not promise byte-stable archives; if the SHA-256 ever drifts, check this commit.
+FB_COMMIT=e0149076aeff009d35fd495e55379cb78f1eb53f

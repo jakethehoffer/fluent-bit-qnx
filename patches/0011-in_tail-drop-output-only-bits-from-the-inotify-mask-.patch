@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 12:11:00 -0500
+Subject: [PATCH] in_tail: drop output-only bits from the inotify mask on QNX
+
+tail_fs_add() asks inotify for IN_ATTRIB | IN_IGNORED | IN_MODIFY |
+IN_Q_OVERFLOW. IN_IGNORED and IN_Q_OVERFLOW are event bits that the system
+reports on its own (<sys/inotify.h>); on Linux they are ignored when set in
+the request. The QNX fsevmgr rejects them: inotify_add_watch() fails with
+EINVAL, so the watch cannot be added and tail cannot follow the file.
+
+Request only IN_ATTRIB | IN_MODIFY on QNX. The other two bits are still
+delivered in events. IN_MOVE_SELF is added for rotation checks as before.
+
+Signed-off-by: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+---
+ plugins/in_tail/tail_fs_inotify.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/plugins/in_tail/tail_fs_inotify.c b/plugins/in_tail/tail_fs_inotify.c
+index 5fdb231..24bd10f 100644
+--- a/plugins/in_tail/tail_fs_inotify.c
++++ b/plugins/in_tail/tail_fs_inotify.c
+@@ -108,7 +108,13 @@ static int tail_fs_add(struct flb_tail_file *file, int check_rotated)
+      * lines from the file and once we reach EOF (and a watch_fd exists),
+      * we update the flags to receive notifications.
+      */
++#ifdef __QNXNTO__
++    /* QNX fsevmgr rejects (EINVAL) output-only bits in the request mask;
++     * IN_IGNORED and IN_Q_OVERFLOW are still reported in events. */
++    flags = IN_ATTRIB | IN_MODIFY;
++#else
+     flags = IN_ATTRIB | IN_IGNORED | IN_MODIFY | IN_Q_OVERFLOW;
++#endif
+ 
+     if (check_rotated == FLB_TRUE) {
+         flags |= IN_MOVE_SELF;

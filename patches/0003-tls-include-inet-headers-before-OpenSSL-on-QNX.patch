@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 12:03:00 -0500
+Subject: [PATCH] tls: include inet headers before OpenSSL on QNX
+
+openssl.c uses struct in6_addr and inet_pton() to tell IP addresses from
+host names. They are declared in <netinet/in.h> and <arpa/inet.h>, which the
+QNX OpenSSL and libc headers do not include transitively, so the file does
+not compile.
+
+Include both headers explicitly on QNX.
+
+Signed-off-by: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+---
+ src/tls/openssl.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/tls/openssl.c b/src/tls/openssl.c
+index 8d8eb16..6fc7679 100644
+--- a/src/tls/openssl.c
++++ b/src/tls/openssl.c
+@@ -27,6 +27,11 @@
+ #include <fluent-bit/tls/flb_tls.h>
+ #include <fluent-bit/tls/flb_tls_info.h>
+ 
++#ifdef __QNXNTO__
++#include <netinet/in.h>
++#include <arpa/inet.h>
++#endif
++
+ #include <openssl/ssl.h>
+ #include <openssl/err.h>
+ #include <openssl/opensslv.h>

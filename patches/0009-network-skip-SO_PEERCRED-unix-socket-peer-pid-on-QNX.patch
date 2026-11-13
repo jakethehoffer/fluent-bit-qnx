@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 12:09:00 -0500
+Subject: [PATCH] network: skip SO_PEERCRED unix socket peer pid on QNX
+
+net_address_unix_socket_peer_pid_raw() reads the peer process id of a unix
+socket with getsockopt(SO_PEERCRED) and struct ucred. QNX's <sys/socket.h>
+defines no SO_PEERCRED option, so the peer credentials cannot be read this
+way and the code does not compile.
+
+Treat QNX like macOS and FreeBSD: the code that needs struct ucred and
+SO_PEERCRED is compiled out and the function reports that no peer pid is
+available.
+
+Signed-off-by: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+---
+ src/flb_network.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/flb_network.c b/src/flb_network.c
+index 6a65a07..3d7eacf 100644
+--- a/src/flb_network.c
++++ b/src/flb_network.c
+@@ -2150,7 +2150,7 @@ static int net_address_unix_socket_peer_pid_raw(flb_sockfd_t fd,
+                                                 int output_buffer_size,
+                                                 size_t *output_data_size)
+ {
+-#if !defined(FLB_SYSTEM_MACOS) && !defined(FLB_SYSTEM_FREEBSD)
++#if !defined(FLB_SYSTEM_MACOS) && !defined(FLB_SYSTEM_FREEBSD) && !defined(FLB_SYSTEM_QNX)
+     unsigned int peer_credentials_size;
+     struct ucred peer_credentials;
+ #endif
+@@ -2168,7 +2168,7 @@ static int net_address_unix_socket_peer_pid_raw(flb_sockfd_t fd,
+         return -1;
+     }
+ 
+-#if !defined(FLB_SYSTEM_MACOS) && !defined(FLB_SYSTEM_FREEBSD)
++#if !defined(FLB_SYSTEM_MACOS) && !defined(FLB_SYSTEM_FREEBSD) && !defined(FLB_SYSTEM_QNX)
+     peer_credentials_size = sizeof(struct ucred);
+ 
+     result = getsockopt(fd,

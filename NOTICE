@@ -1,0 +1,16 @@
+fluent-bit-qnx
+Copyright 2026 Jake Hoffman
+
+This repository contains a porting layer for Fluent Bit: patches, build scripts and
+plugins that adapt Fluent Bit to QNX 8.0. It does not contain Fluent Bit source code.
+
+Fluent Bit is a Cloud Native Computing Foundation (CNCF) project, licensed under the
+Apache License, Version 2.0, and is the work of the Fluent Bit authors and
+contributors: https://github.com/fluent/fluent-bit
+
+The patches in patches/ are changes to Fluent Bit and are offered under the same
+license as Fluent Bit (Apache-2.0). Each patch carries a Signed-off-by line
+(Developer Certificate of Origin), as Fluent Bit requires.
+
+QNX and QNX Software Development Platform are trademarks of BlackBerry Limited. This
+repository does not contain or redistribute any QNX software, headers or libraries.

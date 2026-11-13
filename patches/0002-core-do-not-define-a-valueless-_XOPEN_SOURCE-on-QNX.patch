@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 12:02:00 -0500
+Subject: [PATCH] core: do not define a valueless _XOPEN_SOURCE on QNX
+
+flb_coro.h and flb_output.h define _XOPEN_SOURCE with no value when it is not
+set (needed on macOS for ucontext). QNX's <sys/platform.h> accepts only the
+values 500, 600 and 700 and stops with "#error This version of XOPEN_SOURCE
+is not supported" (sys/platform.h, line 172 in SDP 8.0), so every translation
+unit that includes either header fails to compile.
+
+QNX needs no such definition, so skip it when __QNXNTO__ is defined.
+
+Signed-off-by: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+---
+ include/fluent-bit/flb_coro.h   | 3 ++-
+ include/fluent-bit/flb_output.h | 3 ++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/include/fluent-bit/flb_coro.h b/include/fluent-bit/flb_coro.h
+index e069a7c..d34148f 100644
+--- a/include/fluent-bit/flb_coro.h
++++ b/include/fluent-bit/flb_coro.h
+@@ -21,7 +21,8 @@
+ #define FLB_CORO_H
+ 
+ /* Required by OSX */
+-#ifndef _XOPEN_SOURCE
++/* QNX rejects a valueless _XOPEN_SOURCE and needs none */
++#if !defined(_XOPEN_SOURCE) && !defined(__QNXNTO__)
+ #define _XOPEN_SOURCE
+ #endif
+ 
+diff --git a/include/fluent-bit/flb_output.h b/include/fluent-bit/flb_output.h
+index 2c7d801..7053e45 100644
+--- a/include/fluent-bit/flb_output.h
++++ b/include/fluent-bit/flb_output.h
+@@ -20,7 +20,8 @@
+ #ifndef FLB_OUTPUT_H
+ #define FLB_OUTPUT_H
+ 
+-#ifndef _XOPEN_SOURCE
++/* QNX rejects a valueless _XOPEN_SOURCE and needs none */
++#if !defined(_XOPEN_SOURCE) && !defined(__QNXNTO__)
+ #define _XOPEN_SOURCE
+ #endif
+ 

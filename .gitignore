@@ -1,0 +1,11 @@
+# Build output lives outside the repo ($FBQ_BUILD), these are just in case.
+/build/
+/src/
+*.tar.gz
+*.o
+*.so
+*.log
+__pycache__/
+*.pyc
+# Local scratch.
+/tmp/

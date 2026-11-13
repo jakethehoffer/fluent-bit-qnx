@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 12:06:00 -0500
+Subject: [PATCH] chunkio: use stat(2) instead of d_type to scan on QNX
+
+cio_scan.c decides whether a directory entry is a file or a directory with
+ent->d_type == DT_REG or DT_DIR. On QNX struct dirent has no d_type member:
+a type exists only in struct dirent_extra (<dirent.h>), which is an optional
+extension of the entry. The code therefore does not compile, and treating
+every entry as "unknown" would make the filesystem storage scan find no
+chunks after a restart.
+
+On QNX, test the entry with stat(2) on parent/name. Other systems keep the
+d_type test through the same two macros.
+
+Signed-off-by: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
+---
+ lib/chunkio/src/cio_scan.c | 28 ++++++++++++++++++++++++++--
+ 1 file changed, 26 insertions(+), 2 deletions(-)
+
+diff --git a/lib/chunkio/src/cio_scan.c b/lib/chunkio/src/cio_scan.c
+index ca2f20c..58e609b 100644
+--- a/lib/chunkio/src/cio_scan.c
++++ b/lib/chunkio/src/cio_scan.c
+@@ -36,6 +36,30 @@
+ #include "win32/dirent.h"
+ #endif
+ 
++#ifdef __QNXNTO__
++/* QNX struct dirent has no d_type: fall back to stat(2) */
++#include <limits.h>
++#include <sys/stat.h>
++static int cio_scan_entry_is(const char *parent, const char *name, int want_dir)
++{
++    char buf[PATH_MAX];
++    struct stat st;
++
++    if (snprintf(buf, sizeof(buf), "%s/%s", parent, name) >= (int) sizeof(buf)) {
++        return 0;
++    }
++    if (stat(buf, &st) != 0) {
++        return 0;
++    }
++    return want_dir ? S_ISDIR(st.st_mode) : S_ISREG(st.st_mode);
++}
++#define CIO_ENT_IS_REG(parent, ent) cio_scan_entry_is(parent, (ent)->d_name, 0)
++#define CIO_ENT_IS_DIR(parent, ent) cio_scan_entry_is(parent, (ent)->d_name, 1)
++#else
++#define CIO_ENT_IS_REG(parent, ent) ((ent)->d_type == DT_REG)
++#define CIO_ENT_IS_DIR(parent, ent) ((ent)->d_type == DT_DIR)
++#endif
++
+ #ifdef CIO_HAVE_BACKEND_FILESYSTEM
+ static int cio_scan_stream_files(struct cio_ctx *ctx, struct cio_stream *st,
+                                  char *chunk_extension)
+@@ -83,7 +107,7 @@ static int cio_scan_stream_files(struct cio_ctx *ctx, struct cio_stream *st,
+         }
+ 
+         /* Look just for directories */
+-        if (ent->d_type != DT_REG) {
++        if (!CIO_ENT_IS_REG(path, ent)) {
+             continue;
+         }
+ 
+@@ -147,7 +171,7 @@ int cio_scan_streams(struct cio_ctx *ctx, char *chunk_extension)
+         }
+ 
+         /* Look just for directories */
+-        if (ent->d_type != DT_DIR) {
++        if (!CIO_ENT_IS_DIR(ctx->options.root_path, ent)) {
+             continue;
+         }
+ 
