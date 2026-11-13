@@ -1,0 +1,183 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": true,
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["qnx"],
+  "timezone": "browser",
+  "title": "QNX fleet",
+  "uid": "qnx-fleet",
+  "version": 1,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "leaky_sensor",
+          "value": "leaky_sensor"
+        },
+        "includeAll": true,
+        "label": "name",
+        "multi": false,
+        "name": "name",
+        "options": [
+          {"selected": false, "text": "All", "value": "$__all"},
+          {"selected": true, "text": "leaky_sensor", "value": "leaky_sensor"}
+        ],
+        "query": "leaky_sensor",
+        "type": "custom"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "label": "pid",
+        "multi": false,
+        "name": "pid",
+        "options": [
+          {"selected": true, "text": "All", "value": "$__all"}
+        ],
+        "query": ".*",
+        "type": "custom"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "logs",
+      "title": "slog2",
+      "description": "Live slog2 lines from every buffer set. ERROR is highlighted.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 0},
+      "targets": [
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "editorMode": "code",
+          "expr": "{job=\"fluent-bit-qnx\"} | json | buffer_set != \"\" | label_format level=severity, detected_level=severity | line_format `{{.severity}} {{.buffer_set}} {{.message}}`",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "mem_private_bytes",
+      "description": "Private memory of each process, from qnx_proc.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "editorMode": "code",
+          "expr": "max by (name) (max_over_time({job=\"fluent-bit-qnx\"} | json | name=~\"$name\" | pid=~\"$pid\" | unwrap mem_private_bytes | __error__=\"\" [30s]))",
+          "legendFormat": "{{name}}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "unit": "bytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {"mode": "single", "sort": "none"}
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "cpu_ns rate",
+      "description": "Rate of cpu_ns for each process, from qnx_proc.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "editorMode": "code",
+          "expr": "sum by (name) (rate({job=\"fluent-bit-qnx\"} | json | name=~\"$name\" | pid=~\"$pid\" | unwrap cpu_ns | __error__=\"\" [1m]))",
+          "legendFormat": "{{name}}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {"mode": "single", "sort": "none"}
+      }
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+# Pinned linux-amd64 release archives for the live demo.
+# The SHA-256 is the publisher checksum for that file, not a locally invented digest.
+# loki: GitHub release SHA256SUMS. grafana: the .sha256 file published beside the archive.
+loki 3.7.9 loki-linux-amd64.zip 17a5fae28ce733b3560c27c76620920b169bd2aea9473947b733b511f92e81dd
+grafana 13.3.1 grafana_13.3.1_42849527790_linux_amd64.tar.gz 6acf8939dd2f73332cbcafc27a33973fb1115b8867e7ffa3223c6e2ecbed8531
