@@ -46,5 +46,6 @@
 -DFLB_SQLDB=On
 -DFLB_HTTP_SERVER=On
 
-# QNX-only inputs. in_slog2 stays off until its sources exist.
+# QNX-only inputs.
 -DFLB_IN_QNX_PROC=On
+-DFLB_IN_SLOG2=On

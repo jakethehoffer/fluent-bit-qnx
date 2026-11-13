@@ -97,8 +97,14 @@ for helper in "$root"/tests/helpers/*.c; do
   [ -f "$helper" ] || continue
   helper_name="$(basename "$helper" .c)"
   echo "== helper $helper_name"
-  qcc -Vgcc_ntox86_64 -O2 -Wall -Wextra -Werror \
-    -o "$FBQ_BUILD/bin/$helper_name" "$helper"
+  # slog2_emit calls slog2_register. The other helpers are standalone.
+  if [ "$helper_name" = "slog2_emit" ]; then
+    qcc -Vgcc_ntox86_64 -O2 -Wall -Wextra -Werror \
+      -o "$FBQ_BUILD/bin/$helper_name" "$helper" -lslog2
+  else
+    qcc -Vgcc_ntox86_64 -O2 -Wall -Wextra -Werror \
+      -o "$FBQ_BUILD/bin/$helper_name" "$helper"
+  fi
 done
 
 mkdir -p "$FBQ_BUILD/bin"
