@@ -13,6 +13,7 @@ proc_reports_named_process ok
 proc_cpu_increases_for_spinner ok
 proc_match_filters_names ok
 proc_survives_short_lived_processes ok
+proc_bad_match_exits ok
 agent_runs_at_configured_priority ok
 agent_buffers_while_receiver_down_then_delivers ok
 agent_stops_cleanly ok

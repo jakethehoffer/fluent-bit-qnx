@@ -83,7 +83,7 @@ Record fields: `buffer_set`, `buffer`, `severity`, `severity_num`, `pid`, `threa
 
 Severity names in the plugin are `SHUTDOWN`, `CRITICAL`, `ERROR`, `WARNING`, `NOTICE`, `INFO`, `DEBUG1`, `DEBUG2`, and `UNKNOWN`. [`slog2_lines_arrive_with_severity`](tests/test_slog2.sh) checks `INFO`, `WARNING`, and `ERROR`. A colored NOTICE line is still open.
 
-The input calls `slog2_parse_settings` and `slog2_parse_all` from `<slog2_parse.h>` on its own thread, and queues packets back to the engine. [`slog2_shutdown_is_clean`](tests/test_slog2.sh) checks that stopping does not hang that thread.
+The input calls `slog2_parse_settings` and `slog2_parse_all` from `<slog2_parse.h>` on its own thread, and queues packets back to the engine. [`slog2_shutdown_is_clean`](tests/test_slog2.sh) checks that the process exits cleanly with idle and busy inputs. It does not prove that a blocked parser thread is reclaimed during an in-process reload. The queue can drop old packets when full. See [buffering and shutdown limits](docs/porting-notes.md#slog2-buffering-and-shutdown-limits).
 
 ### qnx_proc
 
@@ -93,7 +93,7 @@ Config keys in [`plugins/in_qnx_proc/in_qnx_proc.c`](plugins/in_qnx_proc/in_qnx_
 | --- | --- | --- |
 | `interval_sec` | `5` | Seconds between process scans |
 | `interval_nsec` | `0` | Extra nanoseconds between scans |
-| `match` | empty | POSIX extended regular expression applied to the process name. Empty reports every process it can read. The plugin skips its own process unless `include_self` is on |
+| `match` | empty | Regular expression applied to the process name through the bundled Onigmo compatibility API. Do not assume full POSIX extended syntax. Empty reports every process it can read. The plugin skips its own process unless `include_self` is on |
 | `include_self` | `false` | Also report this Fluent Bit process |
 
 Record fields: `pid`, `name`, `threads`, `cpu_ns`, `cpu_user_ns`, `cpu_system_ns`, `mem_private_bytes`.

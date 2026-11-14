@@ -26,7 +26,11 @@ The commits through the demo, oldest first. The table stops at the demo commit.
 | `9a915ba` | Run Fluent Bit as a quiet priority-8 service on QNX. |
 | `0cde2a6` | Add a live dashboard demo for the QNX agent. |
 
-Every commit after the initial one carries `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. The build, delivery, and qnx_proc commits also carry `Co-authored-by: Cursor <cursoragent@cursor.com>`.
+Authorship correction (2026-11-14): the implementation sessions ran through Cursor.
+The `Co-Authored-By: Claude Opus 5.5` trailers were prescribed by the implementation
+plan and copied into the commits. They are not a verified record of the model that
+did that work. The build, delivery, and qnx_proc commits also carry a Cursor trailer.
+The historical commits are preserved rather than rewritten. Jake directed the work.
 
 Those commits are what turned the spike into this tree:
 
@@ -39,6 +43,12 @@ Those commits are what turned the spike into this tree:
 - [`docs/images/dashboard.png`](images/dashboard.png) is the demo picture.
 
 [`docs/test-log.txt`](test-log.txt) is the latest full check: patch check, clean build, every on-machine test, and the demo check.
+
+The full run completed on 2026-11-14 against source commit
+`42d3f830aecaba0681b32a75e779f20669277418`. The patch check, clean build,
+all 17 target tests, and the demo check passed with an overall exit status of zero.
+This includes `proc_bad_match_exits`, which was absent from the older saved log.
+These results cover the named scenarios, not every failure path or the open gaps below.
 
 ## Still open
 

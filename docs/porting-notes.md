@@ -102,6 +102,23 @@ QNX (no `getentropy()`); Fluent Bit has a fallback.
 - A live process-name list is still open. The dashboard `name` control is a fixed value.
 - A colored NOTICE line is still open. `in_slog2` maps the NOTICE severity; `slog2_lines_arrive_with_severity` checks INFO, WARNING, and ERROR.
 
+## slog2 buffering and shutdown limits
+
+The parser's private queue holds 1024 packets. When it fills, the oldest packet is
+dropped to make room for the newest. The collector reports cumulative dropped and
+skipped counts in a warning. This queue comes before Fluent Bit's filesystem
+storage, so disk buffering and output retries cannot recover packets dropped here.
+The receiver-outage test does not establish lossless delivery under queue overflow.
+
+Shutdown asks the parser thread to stop and waits up to two seconds to join it.
+If the parser is still blocked, the plugin detaches it and leaves its shared queue
+allocated until the thread returns, or until the process exits. Repeated in-process
+reloads with blocked parsers can therefore retain more threads and memory. There is
+also a cleanup gap if the thread finishes after the timed join fails but before its
+completion flag is checked: that branch frees the shared queue without joining or
+detaching the thread. The idle and busy shutdown tests check process exit, not
+resource reclamation across reloads. These remain implementation limits to fix.
+
 ## Running on a real-time system
 
 `qnx/fluent-bit.conf` is the agent the demo starts. `tools/start-agent.sh` copies it to the target and `tools/stop-agent.sh` stops that process. The inputs are `slog2` (every buffer set, from now) and `qnx_proc`. Each has `mem_buf_limit 5M` and `storage.type filesystem`. The service sets `storage.max_chunks_up 128` and `storage.path` to `$FBQ_TARGET_DIR/storage`, which is `/data/fluent-bit-qnx/storage` unless that variable was overridden. The reference file contains `__TARGET_DIR__/storage`. start-agent writes the real directory into the copy on the machine. Fluent Bit does not expand shell variables, so leaving `$FBQ_TARGET_DIR` in the file would be a literal path.

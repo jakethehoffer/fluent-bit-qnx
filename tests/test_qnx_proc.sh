@@ -155,8 +155,8 @@ REMOTE
   fi
 }
 
-# A match that regcomp rejects must end the process. A double free of the
-# plugin context crashes or hangs instead of returning from init.
+# A match that regcomp rejects must report the error and exit without hanging
+# or showing a crash. This check is not proof that every double free is caught.
 proc_bad_match_exits() {
   local cfg tag result status
   begin_case
