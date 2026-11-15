@@ -132,6 +132,36 @@ asserts queue release before the blocked worker returns, exactly-once cleanup,
 detachment after a timeout, notification-pipe closure, late-callback safety and repeat-stop safety. The
 separate idle and busy integration tests exercise the real parser and process exit.
 
+## Record and hand-off errors
+
+Both inputs build a batch of records, then hand it to Fluent Bit in one call.
+
+- If one record cannot be encoded, only that record is rolled back with
+  `flb_log_event_encoder_rollback_record`. Records already in the batch are kept,
+  and a warning gives both counts. Before this change one bad record dropped the
+  whole batch.
+- If `flb_input_log_append` refuses a batch, the first refusal is logged as an
+  error. Later refusals are counted, not logged, and one warning reports the
+  total lost when Fluent Bit stores records again. Before this change the return
+  value was ignored.
+- `qnx_proc` warns once per process it cannot read. After each scan it forgets
+  processes that no longer fail, so its 128-entry list holds only current
+  faults. When more than 128 fail at once, one summary warning covers the rest
+  until the overflow clears. Before this change a full list warned on every scan
+  for each extra process.
+- `qnx_proc` also stays quiet on `EAGAIN`, as it already did for a process that is
+  gone or not readable. A full check on 2026-11-15 got `EAGAIN` for one of 200
+  short-lived shells, which failed `proc_survives_short_lived_processes`. A process
+  that is still running is read on the next scan.
+
+`tests/test_collect_faults.sh` runs the shipped collect code on the target with
+the encoder, the hand-off and the logger replaced by fakes, so a single record or
+batch can be made to fail. `qnx_proc` scans the target's real `/proc`. On
+2026-11-15 five scratch copies each restored one piece of the old behavior (a bad
+record dropping the batch, in each input; the append result ignored, in each
+input; the old warning list). The matching check failed in all five. The copies
+were not shipped.
+
 ## Running on a real-time system
 
 `qnx/fluent-bit.conf` is the agent the demo starts. `tools/start-agent.sh` copies it to the target and `tools/stop-agent.sh` stops that process. The inputs are `slog2` (every buffer set, from now) and `qnx_proc`. Each has `mem_buf_limit 5M` and `storage.type filesystem`. The service sets `storage.max_chunks_up 128` and `storage.path` to `$FBQ_TARGET_DIR/storage`, which is `/data/fluent-bit-qnx/storage` unless that variable was overridden. The reference file contains `__TARGET_DIR__/storage`. start-agent writes the real directory into the copy on the machine. Fluent Bit does not expand shell variables, so leaving `$FBQ_TARGET_DIR` in the file would be a literal path.

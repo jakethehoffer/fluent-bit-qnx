@@ -7,6 +7,7 @@
 #include <fluent-bit/flb_sds.h>
 
 #include <regex.h>
+#include <stdint.h>
 #include <sys/types.h>
 
 #define FLB_QNX_PROC_WARNED_MAX 128
@@ -21,8 +22,17 @@ struct flb_in_qnx_proc {
     struct flb_input_instance *ins;
     regex_t re;
     int have_re;
+    /* Processes already warned about. A process leaves the list after a
+     * scan that did not fail on it, so the list holds only current faults. */
     pid_t warned[FLB_QNX_PROC_WARNED_MAX];
+    unsigned char warned_seen[FLB_QNX_PROC_WARNED_MAX];
     int warned_n;
+    int warn_hidden;
+    int warn_hidden_reported;
+    /* Set while Fluent Bit refuses records, with the loss counted since. */
+    int append_failing;
+    uint64_t append_lost_records;
+    uint64_t append_lost_batches;
 };
 
 #endif

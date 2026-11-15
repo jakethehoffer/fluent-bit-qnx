@@ -4,6 +4,8 @@ qnx-toolchain: ntox86_64-gcc (QNX8.0.0-rfe1c11236e8a392fdc575fe111bbc8aa4f10d82b
 
 check-patches ok
 build ok
+qnx_proc_collect_faults ok
+slog2_collect_faults ok
 http_delivers_dummy_records ok
 tail_delivers_appended_lines_in_order ok
 forward_delivers_every_tail_line ok
@@ -21,4 +23,5 @@ slog2_lines_arrive_with_severity ok
 slog2_from_now_skips_history ok
 slog2_match_filters_buffer_sets ok
 slog2_shutdown_is_clean ok
+slog2_stop_reclaims_queue_and_thread ok
 demo-check ok

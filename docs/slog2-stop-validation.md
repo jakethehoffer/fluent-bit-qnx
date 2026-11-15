@@ -45,5 +45,6 @@ A parser that never returns can still retain its thread and library-owned state.
 Its large packet queue is now released when the input stops. See the
 [remaining limits](porting-notes.md#slog2-buffering-and-shutdown-limits).
 
-The earlier [full-suite log](test-log.txt) remains the dated baseline described in
-[how it was built](how-it-was-built.md). It is not a fresh full-suite run of this fix.
+A later full run on 2026-11-15 included `slog2_stop_reclaims_queue_and_thread` and
+passed. Its results are in the [full-suite log](test-log.txt), described in
+[how it was built](how-it-was-built.md).

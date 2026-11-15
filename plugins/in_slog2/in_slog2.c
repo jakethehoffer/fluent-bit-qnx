@@ -390,40 +390,77 @@ static int encode_packet(struct flb_in_slog2 *ctx, const struct flb_slog2_packet
     buffer_set_for_record(set_name, sizeof(set_name), pkt->buffer_set, ctx->match);
     severity = severity_name(pkt->severity);
     ret = flb_log_event_encoder_begin_record(ctx->encoder);
-    if (ret != FLB_EVENT_ENCODER_SUCCESS) {
-        return -1;
+    if (ret == FLB_EVENT_ENCODER_SUCCESS) {
+        ret = flb_log_event_encoder_set_timestamp(ctx->encoder, &tm);
     }
-    ret = flb_log_event_encoder_set_timestamp(ctx->encoder, &tm);
-    if (ret != FLB_EVENT_ENCODER_SUCCESS) {
-        return -1;
+    if (ret == FLB_EVENT_ENCODER_SUCCESS) {
+        ret = flb_log_event_encoder_append_body_values(
+            ctx->encoder,
+            FLB_LOG_EVENT_CSTRING_VALUE("buffer_set"),
+            FLB_LOG_EVENT_CSTRING_VALUE(set_name),
+            FLB_LOG_EVENT_CSTRING_VALUE("buffer"),
+            FLB_LOG_EVENT_CSTRING_VALUE(pkt->buffer),
+            FLB_LOG_EVENT_CSTRING_VALUE("severity"),
+            FLB_LOG_EVENT_CSTRING_VALUE(severity),
+            FLB_LOG_EVENT_CSTRING_VALUE("severity_num"),
+            FLB_LOG_EVENT_INT64_VALUE((int64_t) pkt->severity),
+            FLB_LOG_EVENT_CSTRING_VALUE("pid"),
+            FLB_LOG_EVENT_INT64_VALUE((int64_t) pkt->owner_pid),
+            FLB_LOG_EVENT_CSTRING_VALUE("thread_id"),
+            FLB_LOG_EVENT_INT64_VALUE((int64_t) pkt->thread_id),
+            FLB_LOG_EVENT_CSTRING_VALUE("code"),
+            FLB_LOG_EVENT_INT64_VALUE((int64_t) pkt->code),
+            FLB_LOG_EVENT_CSTRING_VALUE("message"),
+            FLB_LOG_EVENT_CSTRING_VALUE(pkt->message));
     }
-    ret = flb_log_event_encoder_append_body_values(
-        ctx->encoder,
-        FLB_LOG_EVENT_CSTRING_VALUE("buffer_set"),
-        FLB_LOG_EVENT_CSTRING_VALUE(set_name),
-        FLB_LOG_EVENT_CSTRING_VALUE("buffer"),
-        FLB_LOG_EVENT_CSTRING_VALUE(pkt->buffer),
-        FLB_LOG_EVENT_CSTRING_VALUE("severity"),
-        FLB_LOG_EVENT_CSTRING_VALUE(severity),
-        FLB_LOG_EVENT_CSTRING_VALUE("severity_num"),
-        FLB_LOG_EVENT_INT64_VALUE((int64_t) pkt->severity),
-        FLB_LOG_EVENT_CSTRING_VALUE("pid"),
-        FLB_LOG_EVENT_INT64_VALUE((int64_t) pkt->owner_pid),
-        FLB_LOG_EVENT_CSTRING_VALUE("thread_id"),
-        FLB_LOG_EVENT_INT64_VALUE((int64_t) pkt->thread_id),
-        FLB_LOG_EVENT_CSTRING_VALUE("code"),
-        FLB_LOG_EVENT_INT64_VALUE((int64_t) pkt->code),
-        FLB_LOG_EVENT_CSTRING_VALUE("message"),
-        FLB_LOG_EVENT_CSTRING_VALUE(pkt->message),
-        FLB_LOG_EVENT_VALUE_LIST_TERMINATOR());
-    if (ret != FLB_EVENT_ENCODER_SUCCESS) {
-        return -1;
+    if (ret == FLB_EVENT_ENCODER_SUCCESS) {
+        ret = flb_log_event_encoder_commit_record(ctx->encoder);
     }
-    ret = flb_log_event_encoder_commit_record(ctx->encoder);
     if (ret != FLB_EVENT_ENCODER_SUCCESS) {
+        /* Drop only this record. Records already committed in this batch
+         * stay in the encoder's output. */
+        flb_log_event_encoder_rollback_record(ctx->encoder);
         return -1;
     }
     return 0;
+}
+
+/* Hand one batch to Fluent Bit. A refusal is reported once, then counted
+ * until Fluent Bit accepts records again, so a long pause does not fill
+ * the log. */
+static void append_batch(struct flb_in_slog2 *ctx, int records)
+{
+    int ret;
+
+    if (ctx->encoder->output_length == 0) {
+        return;
+    }
+    ret = flb_input_log_append(ctx->ins, NULL, 0,
+                               ctx->encoder->output_buffer,
+                               ctx->encoder->output_length);
+    flb_log_event_encoder_reset(ctx->encoder);
+    if (ret != 0) {
+        if (!ctx->append_failing) {
+            flb_plg_error(ctx->ins,
+                          "Fluent Bit did not store %d slog2 records; "
+                          "further losses are counted until it stores again",
+                          records);
+            ctx->append_failing = 1;
+        }
+        ctx->append_lost_records += (uint64_t) records;
+        ctx->append_lost_batches++;
+        return;
+    }
+    if (ctx->append_failing) {
+        flb_plg_warn(ctx->ins,
+                     "Fluent Bit stores records again; %llu slog2 records "
+                     "in %llu batches were lost",
+                     (unsigned long long) ctx->append_lost_records,
+                     (unsigned long long) ctx->append_lost_batches);
+        ctx->append_failing = 0;
+        ctx->append_lost_records = 0;
+        ctx->append_lost_batches = 0;
+    }
 }
 
 static int in_slog2_collect(struct flb_input_instance *ins,
@@ -433,7 +470,10 @@ static int in_slog2_collect(struct flb_input_instance *ins,
     struct flb_in_slog2 *ctx = data;
     struct flb_slog2_shared *sh = ctx->shared;
     char junk[128];
+    int records;
+    int failed;
 
+    (void) ins;
     (void) config;
     if (sh == NULL) {
         return 0;
@@ -466,6 +506,8 @@ static int in_slog2_collect(struct flb_input_instance *ins,
         }
     }
 
+    records = 0;
+    failed = 0;
     for (;;) {
         struct flb_slog2_packet pkt;
         int have;
@@ -483,17 +525,17 @@ static int in_slog2_collect(struct flb_input_instance *ins,
             break;
         }
         if (encode_packet(ctx, &pkt) != 0) {
-            flb_log_event_encoder_reset(ctx->encoder);
-            flb_plg_error(ctx->ins, "could not record slog2 packet");
-            break;
+            failed++;
+        }
+        else {
+            records++;
         }
     }
-    if (ctx->encoder->output_length > 0) {
-        flb_input_log_append(ins, NULL, 0,
-                             ctx->encoder->output_buffer,
-                             ctx->encoder->output_length);
-        flb_log_event_encoder_reset(ctx->encoder);
+    if (failed > 0) {
+        flb_plg_warn(ctx->ins, "could not encode %d slog2 records; "
+                     "kept the other %d", failed, records);
     }
+    append_batch(ctx, records);
     return 0;
 }
 

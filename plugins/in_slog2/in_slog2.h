@@ -58,6 +58,10 @@ struct flb_in_slog2 {
     struct flb_slog2_shared *shared;
     uint64_t logged_dropped;
     uint64_t logged_skipped;
+    /* Set while Fluent Bit refuses records, with the loss counted since. */
+    int append_failing;
+    uint64_t append_lost_records;
+    uint64_t append_lost_batches;
     pthread_t thread;
     int thread_started;
     int coll_fd;

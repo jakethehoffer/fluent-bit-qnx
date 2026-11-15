@@ -107,6 +107,8 @@ Record fields: `pid`, `name`, `threads`, `cpu_ns`, `cpu_user_ns`, `cpu_system_ns
 
 For each numeric directory under `/proc`, the plugin opens `/proc/<pid>/ctl` (and `/proc/<pid>/as` if `ctl` is missing), then `devctl` with `DCMD_PROC_INFO` and `DCMD_PROC_MAPDEBUG_BASE`. The name can also come from `/proc/<pid>/exefile`. [`proc_survives_short_lived_processes`](tests/test_qnx_proc.sh) checks that processes exiting during the scan do not stop the input.
 
+Both inputs keep the rest of a batch when one record cannot be encoded, and report a batch Fluent Bit refuses without flooding the log. [`test_collect_faults.sh`](tests/test_collect_faults.sh) forces each case on the target. See [record and hand-off errors](docs/porting-notes.md#record-and-hand-off-errors).
+
 ## Running on a real-time system
 
 [`qnx/fluent-bit.conf`](qnx/fluent-bit.conf) is the agent. [`tools/start-agent.sh`](tools/start-agent.sh) copies it to the target and replaces `__TARGET_DIR__` with the real directory. Fluent Bit does not expand shell variables. [`tools/stop-agent.sh`](tools/stop-agent.sh) sends SIGTERM and waits until the process has exited 0.

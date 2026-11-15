@@ -1,6 +1,6 @@
 # How this port was built
 
-Jake Hoffman directed an AI coding agent. That is the whole authorship story. The commits are his, as Jake Hoffman `<122403457+jakethehoffer@users.noreply.github.com>`. This file is the public record of what the spike showed and what landed after it. It does not add a result the tests, the patches, or those notes do not already support.
+Jake Hoffman directed AI coding agents. That is the whole authorship story. The commits are his, as Jake Hoffman `<122403457+jakethehoffer@users.noreply.github.com>`. This file is the public record of what the spike showed and what landed after it. It does not add a result the tests, the patches, or those notes do not already support.
 
 ## The spike
 
@@ -42,12 +42,30 @@ Those commits are what turned the spike into this tree:
 - [`qnx/fluent-bit.conf`](../qnx/fluent-bit.conf) and the start/stop scripts are the priority-8 service.
 - [`docs/images/dashboard.png`](images/dashboard.png) is the demo picture.
 
+## After the demo
+
+A review on 2026-11-14 found claims that went further than the tests and some
+small faults in the two QNX inputs. Jake directed two more agents to work
+through them, each checked on the QNX machine before it was pushed:
+
+- OpenAI Codex aligned the public claims with the test evidence (`1732947`) and
+  made stopping the slog2 input release its packet queue and reclaim a finished
+  parser thread (`8fb7783`, see [slog2-stop-validation.md](slog2-stop-validation.md)).
+- Claude (Anthropic) fixed three collect faults on 2026-11-15: one bad record no
+  longer drops the whole batch, a batch Fluent Bit refuses is now reported, and
+  the `qnx_proc` warning list no longer fills up. See
+  [record and hand-off errors](porting-notes.md#record-and-hand-off-errors).
+
 [`docs/test-log.txt`](test-log.txt) is the latest full check: patch check, clean build, every on-machine test, and the demo check.
 
-The full run completed on 2026-11-14 against source commit
-`42d3f830aecaba0681b32a75e779f20669277418`. The patch check, clean build,
-all 17 target tests, and the demo check passed with an overall exit status of zero.
-This includes `proc_bad_match_exits`, which was absent from the older saved log.
+The full run completed on 2026-11-15 against the source committed with this
+paragraph (the commit that adds `tests/test_collect_faults.sh`). The patch check,
+clean build, all 20 target tests, and the demo check passed with an overall exit
+status of zero. The 20 include the slog2 stop check and the two collect fault checks.
+An earlier run that day failed `proc_survives_short_lived_processes` on an `EAGAIN`
+warning, which led to the `EAGAIN` change in the porting notes, and another ran out
+of space on the target's small data disk after deliberate test crashes left core
+files. Those core files were removed before the recorded run.
 These results cover the named scenarios, not every failure path or the open gaps below.
 
 ## Still open

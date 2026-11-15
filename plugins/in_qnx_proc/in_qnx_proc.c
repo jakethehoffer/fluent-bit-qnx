@@ -60,9 +60,13 @@ static void copy_base_name(char *dst, size_t dst_len, const char *src)
     dst[n] = '\0';
 }
 
+/* Gone, not ours to read, or (EAGAIN) caught while starting or exiting.
+ * The full check saw EAGAIN for one of 200 short-lived shells. The next
+ * scan reads a process that is still there. */
 static int ignored_errno(int err)
 {
-    return err == ENOENT || err == ESRCH || err == EPERM || err == EACCES;
+    return err == ENOENT || err == ESRCH || err == EPERM || err == EACCES ||
+           err == EAGAIN;
 }
 
 static void warn_once(struct flb_in_qnx_proc *ctx, pid_t pid, int err)
@@ -71,13 +75,91 @@ static void warn_once(struct flb_in_qnx_proc *ctx, pid_t pid, int err)
 
     for (i = 0; i < ctx->warned_n; i++) {
         if (ctx->warned[i] == pid) {
+            ctx->warned_seen[i] = 1;
             return;
         }
     }
     if (ctx->warned_n < FLB_QNX_PROC_WARNED_MAX) {
-        ctx->warned[ctx->warned_n++] = pid;
+        ctx->warned[ctx->warned_n] = pid;
+        ctx->warned_seen[ctx->warned_n] = 1;
+        ctx->warned_n++;
+        flb_plg_warn(ctx->ins, "pid %ld: %s", (long) pid, strerror(err));
+        return;
     }
-    flb_plg_warn(ctx->ins, "pid %ld: %s", (long) pid, strerror(err));
+    /* The list is full. Count the rest instead of warning on every scan. */
+    ctx->warn_hidden++;
+}
+
+/* After a full scan, forget processes that did not fail this time (they
+ * exited or became readable), so the list never fills with stale ids and a
+ * process that fails again later is reported again. When more processes
+ * fail than the list holds, say so once until the overflow clears. */
+static void warn_scan_end(struct flb_in_qnx_proc *ctx)
+{
+    int i;
+    int kept;
+
+    kept = 0;
+    for (i = 0; i < ctx->warned_n; i++) {
+        if (ctx->warned_seen[i]) {
+            ctx->warned[kept] = ctx->warned[i];
+            ctx->warned_seen[kept] = 0;
+            kept++;
+        }
+    }
+    ctx->warned_n = kept;
+
+    if (ctx->warn_hidden > 0) {
+        if (!ctx->warn_hidden_reported) {
+            flb_plg_warn(ctx->ins,
+                         "%d more processes could not be read; their warnings "
+                         "are hidden while %d are already reported",
+                         ctx->warn_hidden, ctx->warned_n);
+            ctx->warn_hidden_reported = 1;
+        }
+    }
+    else {
+        ctx->warn_hidden_reported = 0;
+    }
+    ctx->warn_hidden = 0;
+}
+
+/* Hand one scan's records to Fluent Bit. A refusal is reported once, then
+ * counted until Fluent Bit accepts records again, so a long pause does not
+ * fill the log. */
+static void append_batch(struct flb_in_qnx_proc *ctx, int records)
+{
+    int ret;
+
+    if (ctx->encoder->output_length == 0) {
+        return;
+    }
+    ret = flb_input_log_append(ctx->ins, NULL, 0,
+                               ctx->encoder->output_buffer,
+                               ctx->encoder->output_length);
+    flb_log_event_encoder_reset(ctx->encoder);
+    if (ret != 0) {
+        if (!ctx->append_failing) {
+            flb_plg_error(ctx->ins,
+                          "Fluent Bit did not store %d process records; "
+                          "further losses are counted until it stores again",
+                          records);
+            ctx->append_failing = 1;
+        }
+        ctx->append_lost_records += (uint64_t) records;
+        ctx->append_lost_batches++;
+        return;
+    }
+    if (ctx->append_failing) {
+        flb_plg_warn(ctx->ins,
+                     "Fluent Bit stores records again; %llu process records "
+                     "in %llu scans were lost",
+                     (unsigned long long) ctx->append_lost_records,
+                     (unsigned long long) ctx->append_lost_batches);
+        ctx->append_failing = 0;
+        ctx->append_lost_records = 0;
+        ctx->append_lost_batches = 0;
+    }
 }
 
 static int devctl_err(int ret)
@@ -184,38 +266,37 @@ static int emit_one(struct flb_in_qnx_proc *ctx, pid_t pid)
     cpu = info.utime + info.stime;
     flb_time_get(&tm);
     ret = flb_log_event_encoder_begin_record(ctx->encoder);
+    if (ret == FLB_EVENT_ENCODER_SUCCESS) {
+        ret = flb_log_event_encoder_set_timestamp(ctx->encoder, &tm);
+    }
+    if (ret == FLB_EVENT_ENCODER_SUCCESS) {
+        ret = flb_log_event_encoder_append_body_values(
+            ctx->encoder,
+            FLB_LOG_EVENT_CSTRING_VALUE("pid"),
+            FLB_LOG_EVENT_INT64_VALUE((int64_t) info.pid),
+            FLB_LOG_EVENT_CSTRING_VALUE("name"),
+            FLB_LOG_EVENT_CSTRING_VALUE(name),
+            FLB_LOG_EVENT_CSTRING_VALUE("threads"),
+            FLB_LOG_EVENT_INT64_VALUE((int64_t) info.num_threads),
+            FLB_LOG_EVENT_CSTRING_VALUE("cpu_ns"),
+            FLB_LOG_EVENT_UINT64_VALUE(cpu),
+            FLB_LOG_EVENT_CSTRING_VALUE("cpu_user_ns"),
+            FLB_LOG_EVENT_UINT64_VALUE(info.utime),
+            FLB_LOG_EVENT_CSTRING_VALUE("cpu_system_ns"),
+            FLB_LOG_EVENT_UINT64_VALUE(info.stime),
+            FLB_LOG_EVENT_CSTRING_VALUE("mem_private_bytes"),
+            FLB_LOG_EVENT_UINT64_VALUE(info.private_mem));
+    }
+    if (ret == FLB_EVENT_ENCODER_SUCCESS) {
+        ret = flb_log_event_encoder_commit_record(ctx->encoder);
+    }
     if (ret != FLB_EVENT_ENCODER_SUCCESS) {
+        /* Drop only this record. Records already committed in this scan
+         * stay in the encoder's output. */
+        flb_log_event_encoder_rollback_record(ctx->encoder);
         return -1;
     }
-    ret = flb_log_event_encoder_set_timestamp(ctx->encoder, &tm);
-    if (ret != FLB_EVENT_ENCODER_SUCCESS) {
-        return -1;
-    }
-    ret = flb_log_event_encoder_append_body_values(
-        ctx->encoder,
-        FLB_LOG_EVENT_CSTRING_VALUE("pid"),
-        FLB_LOG_EVENT_INT64_VALUE((int64_t) info.pid),
-        FLB_LOG_EVENT_CSTRING_VALUE("name"),
-        FLB_LOG_EVENT_CSTRING_VALUE(name),
-        FLB_LOG_EVENT_CSTRING_VALUE("threads"),
-        FLB_LOG_EVENT_INT64_VALUE((int64_t) info.num_threads),
-        FLB_LOG_EVENT_CSTRING_VALUE("cpu_ns"),
-        FLB_LOG_EVENT_UINT64_VALUE(cpu),
-        FLB_LOG_EVENT_CSTRING_VALUE("cpu_user_ns"),
-        FLB_LOG_EVENT_UINT64_VALUE(info.utime),
-        FLB_LOG_EVENT_CSTRING_VALUE("cpu_system_ns"),
-        FLB_LOG_EVENT_UINT64_VALUE(info.stime),
-        FLB_LOG_EVENT_CSTRING_VALUE("mem_private_bytes"),
-        FLB_LOG_EVENT_UINT64_VALUE(info.private_mem),
-        FLB_LOG_EVENT_VALUE_LIST_TERMINATOR());
-    if (ret != FLB_EVENT_ENCODER_SUCCESS) {
-        return -1;
-    }
-    ret = flb_log_event_encoder_commit_record(ctx->encoder);
-    if (ret != FLB_EVENT_ENCODER_SUCCESS) {
-        return -1;
-    }
-    return 0;
+    return 1;
 }
 
 static int in_qnx_proc_collect(struct flb_input_instance *ins,
@@ -227,34 +308,39 @@ static int in_qnx_proc_collect(struct flb_input_instance *ins,
     struct dirent *ent;
     pid_t pid;
     int ret;
+    int records;
+    int skipped;
 
+    (void) ins;
     (void) config;
     dir = opendir("/proc");
     if (!dir) {
         flb_plg_error(ctx->ins, "cannot open /proc: %s", strerror(errno));
         return -1;
     }
+    records = 0;
+    skipped = 0;
     while ((ent = readdir(dir)) != NULL) {
         if (!is_digits(ent->d_name)) {
             continue;
         }
         pid = (pid_t) atol(ent->d_name);
         ret = emit_one(ctx, pid);
-        if (ret != 0) {
-            flb_log_event_encoder_reset(ctx->encoder);
-            flb_plg_error(ctx->ins, "could not record pid %ld", (long) pid);
-            closedir(dir);
-            return 0;
+        if (ret > 0) {
+            records++;
+        }
+        else if (ret < 0) {
+            skipped++;
         }
     }
     closedir(dir);
+    warn_scan_end(ctx);
 
-    if (ctx->encoder->output_length > 0) {
-        flb_input_log_append(ins, NULL, 0,
-                             ctx->encoder->output_buffer,
-                             ctx->encoder->output_length);
-        flb_log_event_encoder_reset(ctx->encoder);
+    if (skipped > 0) {
+        flb_plg_warn(ctx->ins, "could not encode %d process records; "
+                     "kept the other %d", skipped, records);
     }
+    append_batch(ctx, records);
     return 0;
 }
 
