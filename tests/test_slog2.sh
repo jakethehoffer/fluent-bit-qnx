@@ -26,13 +26,19 @@ run() {
   fi
 }
 
+EMIT_PIDS=""
+
 stop_emits() {
+  [ -n "$EMIT_PIDS" ] || return 0
   {
-    echo "dir=$FBQ_TARGET_DIR"
+    echo "pids='$EMIT_PIDS'"
     cat <<'REMOTE'
-slay -f -Q -s SIGKILL slog2_emit >/dev/null 2>&1 || true
+for pid in $pids; do
+  kill -KILL "$pid" 2>/dev/null || true
+done
 REMOTE
   } | fbq_ssh sh -s >/dev/null || true
+  EMIT_PIDS=""
 }
 
 start_emit() {
@@ -47,7 +53,7 @@ start_emit() {
       cat <<'REMOTE'
 rm -f "$dir/slog2-$id.cmd" "$dir/slog2-$id.cmd.new" "$dir/slog2-$id.cmd.done" \
   "$dir/slog2-$id.ready" "$dir/slog2-$id.ack"
-(on -p 10 "$dir/bin/slog2_emit" --set "$setname" --ctl "$dir/slog2-$id.cmd" --ready "$dir/slog2-$id.ready" --ack "$dir/slog2-$id.ack" >/dev/null 2>&1 </dev/null &)
+(on -p 10 "$dir/bin/slog2_emit" --set "$setname" --ctl "$dir/slog2-$id.cmd" --ready "$dir/slog2-$id.ready" --ack "$dir/slog2-$id.ack" >/dev/null 2>&1 </dev/null & echo "EMIT_PID=$!")
 i=0
 while [ "$i" -lt 5 ]; do
   if [ -s "$dir/slog2-$id.ready" ]; then
@@ -67,6 +73,11 @@ exit 1
 REMOTE
     } | fbq_ssh sh -s
   )"
+  local emit_pid
+  emit_pid="$(printf '%s\n' "$result" | sed -n 's/^EMIT_PID=\([0-9][0-9]*\)$/\1/p')"
+  if [ -n "$emit_pid" ]; then
+    EMIT_PIDS="$EMIT_PIDS $emit_pid"
+  fi
   if ! printf '%s\n' "$result" | grep -q '^START=ok$'; then
     echo "helper slog2_emit did not start" >&2
     printf '%s\n' "$result" >&2

@@ -342,7 +342,6 @@ static int on_packet(slog2_packet_info_t *info, void *payload, void *param)
 static void *parse_thread(void *arg)
 {
     struct flb_slog2_shared *sh = arg;
-    struct flb_input_instance *ins;
     slog2_packet_info_t info;
     uint32_t flags;
     char *match;
@@ -365,18 +364,16 @@ static void *parse_thread(void *arg)
 
     pthread_mutex_lock(&sh->lock);
     stopped = sh->stop || sh->plugin_gone;
-    ins = sh->ins;
-    pthread_mutex_unlock(&sh->lock);
-    if (ret != 0 && !stopped && ins != NULL) {
-        flb_plg_error(ins, "slog2_parse_all failed");
+    /* Stop clears ins under this same lock before the plugin can be freed. */
+    if (ret != 0 && !stopped && sh->ins != NULL) {
+        flb_plg_error(sh->ins, "slog2_parse_all failed");
     }
-
-    pthread_mutex_lock(&sh->lock);
     sh->thread_done = 1;
     gone = sh->plugin_gone;
     pthread_mutex_unlock(&sh->lock);
     if (gone) {
         pthread_mutex_destroy(&sh->lock);
+        flb_free(sh->q);
         flb_free(sh);
     }
     return NULL;
@@ -506,6 +503,7 @@ static void shared_free(struct flb_slog2_shared *sh)
         return;
     }
     pthread_mutex_destroy(&sh->lock);
+    flb_free(sh->q);
     flb_free(sh);
 }
 
@@ -526,6 +524,11 @@ static void in_slog2_stop(struct flb_in_slog2 *ctx)
 
         pthread_mutex_lock(&sh->lock);
         sh->stop = 1;
+        /* No callback can use the queue after seeing stop. The collector is
+         * paused above and shares the engine thread with this callback. */
+        flb_free(sh->q);
+        sh->q = NULL;
+        sh->count = 0;
         pthread_mutex_unlock(&sh->lock);
 
         /*
@@ -533,9 +536,9 @@ static void in_slog2_stop(struct flb_in_slog2 *ctx)
          * cancellation point. Set the stop flag (the callback returns
          * non-zero once it runs), then join for 2 seconds. If the thread is
          * still blocked, detach only after the callback's shared state lives
-         * in a block the thread itself frees on the way out. The plugin does
-         * not free that block, and the callback does not use the pipe after
-         * plugin_gone is set.
+         * in a small block the thread itself frees on the way out. The large
+         * packet queue is already freed. The callback does not use the pipe
+         * after plugin_gone is set.
          */
         clock_gettime(CLOCK_REALTIME, &deadline);
         deadline.tv_sec += 2;
@@ -561,11 +564,11 @@ static void in_slog2_stop(struct flb_in_slog2 *ctx)
                     ctx->pipe_w = -1;
                 }
             }
+            /* Even if the worker just finished, its joinable thread resources
+             * must be reclaimed. Detach works for both live and exited workers. */
+            pthread_detach(ctx->thread);
             if (done) {
                 shared_free(sh);
-            }
-            else {
-                pthread_detach(ctx->thread);
             }
             ctx->shared = NULL;
             ctx->thread_started = 0;
@@ -665,6 +668,12 @@ static int in_slog2_init(struct flb_input_instance *ins,
     if (pthread_mutex_init(&sh->lock, NULL) != 0) {
         flb_free(sh);
         flb_plg_error(ins, "cannot create slog2 lock");
+        return init_fail(ctx);
+    }
+    ctx->shared = sh;
+    sh->q = flb_calloc(FLB_SLOG2_QUEUE_MAX, sizeof(*sh->q));
+    if (sh->q == NULL) {
+        flb_errno();
         return init_fail(ctx);
     }
     sh->wake_fd = ctx->pipe_w;

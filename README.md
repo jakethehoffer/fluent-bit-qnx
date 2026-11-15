@@ -85,6 +85,11 @@ Severity names in the plugin are `SHUTDOWN`, `CRITICAL`, `ERROR`, `WARNING`, `NO
 
 The input calls `slog2_parse_settings` and `slog2_parse_all` from `<slog2_parse.h>` on its own thread, and queues packets back to the engine. [`slog2_shutdown_is_clean`](tests/test_slog2.sh) checks that the process exits cleanly with idle and busy inputs. It does not prove that a blocked parser thread is reclaimed during an in-process reload. The queue can drop old packets when full. See [buffering and shutdown limits](docs/porting-notes.md#slog2-buffering-and-shutdown-limits).
 
+Stopping the input releases its packet queue even if the parser remains blocked.
+The [stop lifecycle check](tests/test_slog2_stop.sh) forces shutdown races with real
+QNX threads and verifies queue, pipe and completed-thread cleanup. Its scope and
+results are recorded in [stop cleanup validation](docs/slog2-stop-validation.md).
+
 ### qnx_proc
 
 Config keys in [`plugins/in_qnx_proc/in_qnx_proc.c`](plugins/in_qnx_proc/in_qnx_proc.c):

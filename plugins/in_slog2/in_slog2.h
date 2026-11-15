@@ -45,7 +45,8 @@ struct flb_slog2_shared {
     unsigned head;
     unsigned count;
     char match_api[FLB_SLOG2_MATCH_MAX];
-    struct flb_slog2_packet q[FLB_SLOG2_QUEUE_MAX];
+    /* Released by stop under lock, even if the parser is still blocked. */
+    struct flb_slog2_packet *q;
 };
 
 struct flb_in_slog2 {

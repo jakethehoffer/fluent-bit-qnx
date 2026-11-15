@@ -86,7 +86,6 @@ pidf="$dir/$tag.pid"
 exitf="$dir/$tag.exit"
 log="$dir/$tag.log"
 rm -f "$pidf" "$exitf" "$log"
-slay -f -Q -s SIGKILL fluent-bit >/dev/null 2>&1 || true
 # on is backgrounded inside a subshell that exits at once, so this shell can
 # return while the wrapper (and fluent-bit) keep running.
 (on -p 10 sh "$dir/wrap.sh" "$bin" "$dir/fb.conf" "$log" "$pidf" "$exitf" >/dev/null 2>&1 </dev/null &)

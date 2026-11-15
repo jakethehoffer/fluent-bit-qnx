@@ -110,14 +110,27 @@ skipped counts in a warning. This queue comes before Fluent Bit's filesystem
 storage, so disk buffering and output retries cannot recover packets dropped here.
 The receiver-outage test does not establish lossless delivery under queue overflow.
 
-Shutdown asks the parser thread to stop and waits up to two seconds to join it.
-If the parser is still blocked, the plugin detaches it and leaves its shared queue
-allocated until the thread returns, or until the process exits. Repeated in-process
-reloads with blocked parsers can therefore retain more threads and memory. There is
-also a cleanup gap if the thread finishes after the timed join fails but before its
-completion flag is checked: that branch frees the shared queue without joining or
-detaching the thread. The idle and busy shutdown tests check process exit, not
-resource reclamation across reloads. These remain implementation limits to fix.
+Shutdown pauses the collector, marks the parser as stopped, and frees its packet
+queue under the callback lock. A late callback sees the stop flag before accessing
+the queue. The plugin then waits up to two seconds to join the parser thread. If
+the join fails, it detaches the thread even when the worker has just finished, so
+completed joinable-thread resources are not leaked. Parser error reporting holds
+the same lock as shutdown, preventing use of a freed plugin instance.
+
+If `slog2_parse_all` remains blocked, its thread, library resources and small shared
+control block must still survive until it returns or the process exits. The large
+packet queue is no longer retained. Repeated in-process reloads can still accumulate
+these blocked workers. Forcing cancellation is not safe: the QNX API is not a
+[cancellation point](https://qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/slog2_parse_all.html).
+This fix does not claim to make arbitrary stuck library calls reclaimable.
+
+`tests/test_slog2_stop.sh` exercises the production lifecycle code with real QNX
+threads and controlled parser/join outcomes. It checks normal join, completion
+after a join timeout, a parser still blocked during stop, and cleanup before a
+worker starts, each 32 times. It
+asserts queue release before the blocked worker returns, exactly-once cleanup,
+detachment after a timeout, notification-pipe closure, late-callback safety and repeat-stop safety. The
+separate idle and busy integration tests exercise the real parser and process exit.
 
 ## Running on a real-time system
 
