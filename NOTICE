@@ -2,7 +2,8 @@ fluent-bit-qnx
 Copyright 2026 Jake Hoffman
 
 This repository contains a porting layer for Fluent Bit: patches, build scripts and
-plugins that adapt Fluent Bit to QNX 8.0. It does not contain Fluent Bit source code.
+plugins that adapt Fluent Bit to QNX 8.0. It does not contain the Fluent Bit source
+tree. The patches quote the Fluent Bit lines they change.
 
 Fluent Bit is a Cloud Native Computing Foundation (CNCF) project, licensed under the
 Apache License, Version 2.0, and is the work of the Fluent Bit authors and
@@ -15,5 +16,5 @@ license as Fluent Bit (Apache-2.0). Each patch carries a Signed-off-by line
 QNX and QNX Software Development Platform are trademarks of BlackBerry Limited. This
 repository does not contain or redistribute any QNX software, headers or libraries.
 
-tools/qemu-up.sh is copied from the same author's qnx-ipc tools/qemu-up.sh, under
+tools/qemu-up.sh and tools/qemu-down.sh are copied from the same author's qnx-ipc tools, under
 Apache-2.0: https://github.com/jakethehoffer/qnx-ipc

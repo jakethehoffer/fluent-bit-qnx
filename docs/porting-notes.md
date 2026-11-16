@@ -8,8 +8,10 @@ it, checks the hash, extracts it under `$FBQ_BUILD/src` and applies `patches/*.p
 `tools/check-patches.sh` refuses a series with a NUL byte, CRLF line endings, a missing
 `Signed-off-by`, or a patch that does not apply in order to a pristine extract.
 
-Every QNX change is behind `__QNXNTO__` (compiler macro) or `FLB_SYSTEM_QNX` (defined by the
-CMake patch), so other platforms compile the same code as before.
+Every source change is behind `__QNXNTO__` (compiler macro) or `FLB_SYSTEM_QNX` (defined by the
+CMake patch), so other platforms compile the same code as before. The one exception is 0012: its
+two registration lines are not guarded, and each input is built only when its `FLB_IN_*` option
+is switched on, which only the QNX build does.
 
 ## Patch series
 
@@ -164,7 +166,7 @@ were not shipped.
 
 ## Running on a real-time system
 
-`qnx/fluent-bit.conf` is the agent the demo starts. `tools/start-agent.sh` copies it to the target and `tools/stop-agent.sh` stops that process. The inputs are `slog2` (every buffer set, from now) and `qnx_proc`. Each has `mem_buf_limit 5M` and `storage.type filesystem`. The service sets `storage.max_chunks_up 128` and `storage.path` to `$FBQ_TARGET_DIR/storage`, which is `/data/fluent-bit-qnx/storage` unless that variable was overridden. The reference file contains `__TARGET_DIR__/storage`. start-agent writes the real directory into the copy on the machine. Fluent Bit does not expand shell variables, so leaving `$FBQ_TARGET_DIR` in the file would be a literal path.
+`qnx/fluent-bit.conf` is the agent the demo starts. `tools/start-agent.sh` copies it to the target and `tools/stop-agent.sh` stops that process. The inputs are `slog2` (every buffer set, from now) and `qnx_proc`. Each has `mem_buf_limit 5M` and `storage.type filesystem`. The service sets `storage.max_chunks_up 128` and `storage.path` to `$FBQ_TARGET_DIR/storage`, which is `/data/fluent-bit-qnx/storage` unless that variable was overridden. The reference file contains `__TARGET_DIR__/storage`. start-agent writes the real directory into the copy on the machine, so the agent does not depend on a variable being set in its environment on the target.
 
 The Loki output uses host `10.0.2.2`, port `3100`, and `labels job=fluent-bit-qnx` (the same label as `tests/configs/tail-loki.conf`). When `FBQ_LOKI_HOST` or `FBQ_LOKI_PORT` is set, start-agent writes that value instead. `retry_limit false` keeps a chunk that could not be sent and tries it again, so records stay on disk while the receiver is down and are delivered once it is back. `tests/test_service.sh` covers that path. Reloading chunks after a process restart is still the filesystem-storage gap noted above.
 
