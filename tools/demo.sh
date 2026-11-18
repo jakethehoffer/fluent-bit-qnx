@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Narrated live demo: slog2 and qnx_proc on a local Grafana dashboard.
 #
-#   tools/demo.sh [--headless]
+#   tools/demo.sh [--headless] [--hold SECONDS]
 #
 # Starts the pinned host stack, one agent at priority 8, and leaky_sensor.
-# Stops all of them on the way out. Safe to run again.
+# Stops all of them on the way out. Safe to run again. --hold keeps everything
+# running for SECONDS after the memory drop, so the dashboard can be watched or
+# filmed before it stops.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -13,14 +15,23 @@ source "$root/tools/env.sh"
 
 data="${FBQ_DEMO_DATA_ROOT:-$HOME/.local/share/fluent-bit-qnx-demo}"
 headless=0
-case "${1:-}" in
-  "") ;;
-  --headless) headless=1 ;;
-  *)
-    echo "usage: tools/demo.sh [--headless]" >&2
-    exit 2
-    ;;
-esac
+hold=0
+usage() {
+  echo "usage: tools/demo.sh [--headless] [--hold SECONDS]" >&2
+  exit 2
+}
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --headless) headless=1 ;;
+    --hold)
+      [ "$#" -ge 2 ] && [[ "$2" =~ ^[0-9]+$ ]] || usage
+      hold="$2"
+      shift
+      ;;
+    *) usage ;;
+  esac
+  shift
+done
 
 if ! [[ "$FBQ_TARGET_DIR" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
   echo "FBQ_TARGET_DIR must be a simple absolute path" >&2
@@ -327,6 +338,11 @@ if ! wait_for dropped 40; then
 fi
 echo "leaky_sensor mem_private_bytes"
 loki_query series
+
+if [ "$hold" -gt 0 ]; then
+  echo "== Holding the dashboard for $hold seconds"
+  sleep "$hold"
+fi
 
 echo "== 9. Stop"
 echo "demo stopped"

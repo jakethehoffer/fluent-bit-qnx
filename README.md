@@ -42,7 +42,7 @@ Earlier work we found:
 
 ## Dashboard
 
-The picture at the top is the demo dashboard [QNX fleet](demo/host/grafana/dashboards/qnx-fleet.json): a slog2 panel, `mem_private_bytes`, and `cpu_ns rate`. The name filter in that picture is `leaky_sensor`. The pid filter is All. [`tools/demo-check.sh`](tools/demo-check.sh) checks that Loki stored a `leaky_sensor` INFO line, an ERROR line, and a rise in `mem_private_bytes`. [demo/README.md](demo/README.md) describes the run.
+The picture at the top is the demo dashboard [QNX fleet](demo/host/grafana/dashboards/qnx-fleet.json) during a demo run: `leaky_sensor` logs steady readings, then a WARNING and an ERROR each time its buffer grows, its private memory climbs, and the demo restarts it. The panels are the slog2 lines of the buffer sets the name filter selects, `mem_private_bytes`, and CPU as a percent of one core (the per-second increase of `cpu_ns`). The name filter in that picture is `leaky_sensor`. The pid filter is All. [`tools/demo-check.sh`](tools/demo-check.sh) checks that Loki stored a `leaky_sensor` INFO line, an ERROR line, and a rise in `mem_private_bytes`. [demo/README.md](demo/README.md) describes the run.
 
 ## Quick start
 
@@ -64,7 +64,7 @@ tools/deploy.sh         # copy the agent to the target
 tools/demo.sh           # agent, leaky_sensor and the live dashboard, narrated
 ```
 
-`tools/demo.sh` prints `http://127.0.0.1:3000/d/qnx-fleet/qnx-fleet`. That address is live only while `tools/demo.sh` is still running, because the script stops the charts on the way out. The same path with no browser is:
+`tools/demo.sh` prints `http://127.0.0.1:3000/d/qnx-fleet/qnx-fleet`. That address is live only while `tools/demo.sh` is still running, because the script stops the charts on the way out. `tools/demo.sh --hold 300` keeps everything running for 300 seconds after the memory drop, so the dashboard can be watched or filmed. The same path with no browser is:
 
 ```bash
 tools/demo-check.sh
@@ -172,7 +172,7 @@ Jake Hoffman built this by directing AI coding agents. The port was implemented 
 - Not exercised yet: saved chunks coming back after the agent restarts, TLS to a real endpoint, tail `db=`, and file rotation.
 - Unix-socket peer pid is unavailable on QNX ([`0009`](patches/0009-network-skip-SO_PEERCRED-unix-socket-peer-pid-on-QNX.patch)).
 - slog2: the parser's queue drops its oldest packets when it is full, and a parser thread still blocked inside `slog2_parse_all` is not reclaimed during an in-process reload ([buffering and shutdown limits](docs/porting-notes.md#slog2-buffering-and-shutdown-limits)).
-- Dashboard: the name control is a fixed choice in the dashboard file, not a live list, and NOTICE lines have no color of their own.
+- Dashboard: the name control is a fixed choice in the dashboard file, not a live list, and NOTICE lines share the INFO color (the line itself still says NOTICE).
 
 Details are in [docs/porting-notes.md](docs/porting-notes.md).
 

@@ -6,9 +6,9 @@ This runs the QNX agent against a local Loki and Grafana so slog2 lines and per-
 
 - Loki on `0.0.0.0:3100`, with files under `$HOME/.local/share/fluent-bit-qnx-demo`.
 - Grafana on `127.0.0.1:3000`, anonymous viewer, dashboard at `/d/qnx-fleet/qnx-fleet`.
-- Panel 1: slog2 lines from every buffer set, with ERROR highlighted.
+- Panel 1: slog2 lines from the buffer sets the `name` filter selects (All shows every buffer set). Each line keeps its QNX severity, and the level color is ERROR red, WARNING yellow, INFO and NOTICE blue.
 - Panel 2: `mem_private_bytes` per process name (`unwrap` on `qnx_proc` records).
-- Panel 3: `cpu_ns` rate per process name.
+- Panel 3: CPU as a percent of one core per process name: the per-second increase of the `cpu_ns` running total (`rate_counter`), divided by 10^7.
 - `name` and `pid` variables to narrow those series. `name` starts at `leaky_sensor`. `pid` starts at all pids so a restart stays on the chart.
 
 `leaky_sensor` registers the slog2 buffer set `leaky_sensor`, logs an INFO reading every second, and after `--leak-after N` seconds allocates and touches 8 MiB every other second. Each growth logs WARNING, then ERROR.
@@ -22,7 +22,7 @@ tools/demo.sh
 tools/demo-check.sh
 ```
 
-`tools/demo.sh --headless` is the same narrated run for an unattended check. The check runs that mode and queries Loki for `leaky_sensor` INFO lines, ERROR lines, and rising `mem_private_bytes`. It prints `demo check passed` or the first missing item.
+`tools/demo.sh --hold SECONDS` keeps the dashboard, agent and `leaky_sensor` running for that long after the memory drop, for watching or filming. `tools/demo.sh --headless` is the same narrated run for an unattended check. The check runs that mode and queries Loki for `leaky_sensor` INFO lines, ERROR lines, and rising `mem_private_bytes`. It prints `demo check passed` or the first missing item.
 
 The demo starts the agent with `tools/start-agent.sh` at priority 8 and Loki `10.0.2.2:3100`. It reuses the running QEMU target. It stops the agent, `leaky_sensor`, Loki, and Grafana on the way out.
 

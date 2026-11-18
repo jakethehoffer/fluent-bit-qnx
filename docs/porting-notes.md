@@ -102,7 +102,7 @@ QNX (no `getentropy()`); Fluent Bit has a fallback.
 - Unix-socket peer pid is unavailable (0009).
 - Compiler warnings (46 in the spike build) have not been triaged.
 - A live process-name list is still open. The dashboard `name` control is a fixed value.
-- A colored NOTICE line is still open. `in_slog2` maps the NOTICE severity; `slog2_lines_arrive_with_severity` checks INFO, WARNING, and ERROR.
+- NOTICE lines share the INFO color on the demo dashboard. `in_slog2` maps the NOTICE severity; `slog2_lines_arrive_with_severity` checks INFO, WARNING, and ERROR.
 
 ## slog2 buffering and shutdown limits
 

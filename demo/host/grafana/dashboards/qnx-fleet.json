@@ -63,7 +63,7 @@
       "id": 1,
       "type": "logs",
       "title": "slog2",
-      "description": "Live slog2 lines from every buffer set. ERROR is highlighted.",
+      "description": "Live slog2 lines from the buffer sets the name filter selects (All shows every buffer set). ERROR is highlighted.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -73,7 +73,7 @@
         {
           "datasource": {"type": "loki", "uid": "loki"},
           "editorMode": "code",
-          "expr": "{job=\"fluent-bit-qnx\"} | json | buffer_set != \"\" | label_format level=severity, detected_level=severity | line_format `{{.severity}} {{.buffer_set}} {{.message}}`",
+          "expr": "{job=\"fluent-bit-qnx\"} | json | buffer_set=~\"$name\" | label_format level=`{{ if eq .severity \"ERROR\" }}error{{ else if eq .severity \"WARNING\" }}warning{{ else if or (eq .severity \"CRITICAL\") (eq .severity \"SHUTDOWN\") }}critical{{ else if or (eq .severity \"INFO\") (eq .severity \"NOTICE\") }}info{{ else if hasPrefix \"DEBUG\" .severity }}debug{{ else }}unknown{{ end }}`, detected_level=`{{ if eq .severity \"ERROR\" }}error{{ else if eq .severity \"WARNING\" }}warning{{ else if or (eq .severity \"CRITICAL\") (eq .severity \"SHUTDOWN\") }}critical{{ else if or (eq .severity \"INFO\") (eq .severity \"NOTICE\") }}info{{ else if hasPrefix \"DEBUG\" .severity }}debug{{ else }}unknown{{ end }}` | line_format `{{.severity}} {{.buffer_set}} {{.message}}`",
           "queryType": "range",
           "refId": "A"
         }
@@ -103,7 +103,7 @@
         {
           "datasource": {"type": "loki", "uid": "loki"},
           "editorMode": "code",
-          "expr": "max by (name) (max_over_time({job=\"fluent-bit-qnx\"} | json | name=~\"$name\" | pid=~\"$pid\" | unwrap mem_private_bytes | __error__=\"\" [30s]))",
+          "expr": "max by (name) (max_over_time({job=\"fluent-bit-qnx\"} | json name, pid, mem_private_bytes | name=~\"$name\" | pid=~\"$pid\" | unwrap mem_private_bytes | __error__=\"\" [30s]))",
           "legendFormat": "{{name}}",
           "queryType": "range",
           "refId": "A"
@@ -137,8 +137,8 @@
     {
       "id": 3,
       "type": "timeseries",
-      "title": "cpu_ns rate",
-      "description": "Rate of cpu_ns for each process, from qnx_proc.",
+      "title": "CPU, % of one core",
+      "description": "CPU time (cpu_ns, user plus system) each process used per second, from qnx_proc. 100 means one core busy all the time.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -148,7 +148,7 @@
         {
           "datasource": {"type": "loki", "uid": "loki"},
           "editorMode": "code",
-          "expr": "sum by (name) (rate({job=\"fluent-bit-qnx\"} | json | name=~\"$name\" | pid=~\"$pid\" | unwrap cpu_ns | __error__=\"\" [1m]))",
+          "expr": "sum by (name) (rate_counter({job=\"fluent-bit-qnx\"} | json name, pid, cpu_ns | name=~\"$name\" | pid=~\"$pid\" | unwrap cpu_ns | __error__=\"\" [1m])) / 1e7",
           "legendFormat": "{{name}}",
           "queryType": "range",
           "refId": "A"
@@ -157,7 +157,7 @@
       "fieldConfig": {
         "defaults": {
           "color": {"mode": "palette-classic"},
-          "unit": "none",
+          "unit": "percent",
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
