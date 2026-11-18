@@ -23,6 +23,9 @@ fbq_ssh "mkdir -p $dir/bin $dir/lib"
 
 # Copy under a new name and rename: QNX can keep a program file busy for a moment after
 # its last process exited, so overwriting the previous binary in place may fail.
+# A copy that failed part way (for example on a full disk) leaves fluent-bit.new
+# behind, which would hold the space the next copy needs.
+fbq_ssh "rm -f $dir/bin/fluent-bit.new"
 fbq_scp "$bin" "$dir/bin/fluent-bit.new" >/dev/null
 fbq_ssh "chmod 755 $dir/bin/fluent-bit.new && mv -f $dir/bin/fluent-bit.new $dir/bin/fluent-bit"
 

@@ -160,7 +160,7 @@ The full-check record is [docs/test-log.txt](docs/test-log.txt). The patch-by-pa
 
 [`UPSTREAM`](UPSTREAM) pins Fluent Bit 5.2.0, the release tarball, its SHA-256, and commit `e0149076aeff009d35fd495e55379cb78f1eb53f`. `tools/check-patches.sh` applies `patches/*.patch` in order to a pristine extract and refuses a NUL byte, CRLF, a missing `Signed-off-by`, or a patch that does not apply.
 
-An upstream series would be one component per commit, with the [Developer Certificate of Origin](https://github.com/fluent/fluent-bit/blob/master/CONTRIBUTING.md) Fluent Bit already requires on these patches. Edits under `lib/` (chunkio, snappy, monkey) need maintainer agreement. The table in [docs/porting-notes.md](docs/porting-notes.md) says which patches are ready to offer as they stand. No pull request is open yet.
+The core of this port is offered upstream as [fluent/fluent-bit#12811](https://github.com/fluent/fluent-bit/pull/12811), opened 2026-11-18 against Fluent Bit master (5.2.1). It carries patches 0001 to 0003 and 0009 to 0011 as seven commits, one per component, each with a Developer Certificate of Origin sign-off. Patch 0001 is reworked there to link `libsocket` and `libfsnotify` through `FLB_DEPS` instead of a global `link_libraries()`. Before it was opened, that branch plus patches 0004 to 0008 was cross-built for QNX 8.0 and passed the output tests and the smoke test on the target, and on Linux its changed files preprocess to the same tokens apart from `__LINE__` values and Fluent Bit's own `in_tail` integration scenario passes. The PR description has the details. The bundled-library patches (0004 to 0008, chunkio, snappy and monkey) are not in that PR, because Fluent Bit maintains `lib/` separately.
 
 ## How it was built
 
