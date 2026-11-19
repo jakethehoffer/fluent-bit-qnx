@@ -103,7 +103,7 @@
         {
           "datasource": {"type": "loki", "uid": "loki"},
           "editorMode": "code",
-          "expr": "max by (name) (max_over_time({job=\"fluent-bit-qnx\"} | json name, pid, mem_private_bytes | name=~\"$name\" | pid=~\"$pid\" | unwrap mem_private_bytes | __error__=\"\" [30s]))",
+          "expr": "max by (name) (max_over_time({job=\"fluent-bit-qnx\"} | json name, pid, mem_private_bytes | name=~\"$name\" | pid=~\"$pid\" | unwrap mem_private_bytes | __error__=\"\" [10s]))",
           "legendFormat": "{{name}}",
           "queryType": "range",
           "refId": "A"

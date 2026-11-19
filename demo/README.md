@@ -22,9 +22,11 @@ tools/demo.sh
 tools/demo-check.sh
 ```
 
+The demo starts `leaky_sensor` with `--leak-after 15`, so the first 15 seconds show calm INFO lines, and scans processes every second. After Loki first shows the memory rise, it lets the leak run 30 more seconds before the restart, so the memory chart climbs in steps. `tools/demo.sh --leak SECONDS` changes those 30 seconds. `leaky_sensor` stops growing at 192 MiB.
+
 `tools/demo.sh --hold SECONDS` keeps the dashboard, agent and `leaky_sensor` running for that long after the memory drop, for watching or filming. `tools/demo.sh --headless` is the same narrated run for an unattended check. The check runs that mode and queries Loki for `leaky_sensor` INFO lines, ERROR lines, and rising `mem_private_bytes`. It prints `demo check passed` or the first missing item.
 
-The demo starts the agent with `tools/start-agent.sh` at priority 8 and Loki `10.0.2.2:3100`. It reuses the running QEMU target. It stops the agent, `leaky_sensor`, Loki, and Grafana on the way out.
+The demo starts the agent with `tools/start-agent.sh` at priority 8, Loki `10.0.2.2:3100`, and `FBQ_PROC_INTERVAL_SEC=1`, which adds `interval_sec 1` to the `qnx_proc` input in the copy on the target. It reuses the running QEMU target. It stops the agent, `leaky_sensor`, Loki, and Grafana on the way out.
 
 ## Pinned host binaries
 

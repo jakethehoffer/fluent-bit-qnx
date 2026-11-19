@@ -64,7 +64,7 @@ tools/deploy.sh         # copy the agent to the target
 tools/demo.sh           # agent, leaky_sensor and the live dashboard, narrated
 ```
 
-`tools/demo.sh` prints `http://127.0.0.1:3000/d/qnx-fleet/qnx-fleet`. That address is live only while `tools/demo.sh` is still running, because the script stops the charts on the way out. `tools/demo.sh --hold 300` keeps everything running for 300 seconds after the memory drop, so the dashboard can be watched or filmed. The same path with no browser is:
+`tools/demo.sh` prints `http://127.0.0.1:3000/d/qnx-fleet/qnx-fleet`. That address is live only while `tools/demo.sh` is still running, because the script stops the charts on the way out. `tools/demo.sh --hold 300` keeps everything running for 300 seconds after the memory drop, so the dashboard can be watched or filmed. In the demo the agent scans processes every second, and the leak runs 30 seconds past the first sign of it (`--leak SECONDS` changes that). The same path with no browser is:
 
 ```bash
 tools/demo-check.sh

@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Narrated live demo: slog2 and qnx_proc on a local Grafana dashboard.
 #
-#   tools/demo.sh [--headless] [--hold SECONDS]
+#   tools/demo.sh [--headless] [--hold SECONDS] [--leak SECONDS]
 #
-# Starts the pinned host stack, one agent at priority 8, and leaky_sensor.
-# Stops all of them on the way out. Safe to run again. --hold keeps everything
-# running for SECONDS after the memory drop, so the dashboard can be watched or
-# filmed before it stops.
+# Starts the pinned host stack, one agent at priority 8 that scans processes
+# every second, and leaky_sensor, which logs calmly for 15 seconds and then
+# leaks. Stops all of them on the way out. Safe to run again. --leak keeps the
+# leak going for SECONDS (default 30) after Loki first shows the rise, so the
+# memory chart climbs before the restart. --hold keeps everything running for
+# SECONDS after the memory drop, so the dashboard can be watched or filmed
+# before it stops.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,8 +19,10 @@ source "$root/tools/env.sh"
 data="${FBQ_DEMO_DATA_ROOT:-$HOME/.local/share/fluent-bit-qnx-demo}"
 headless=0
 hold=0
+leak=30
+calm=15
 usage() {
-  echo "usage: tools/demo.sh [--headless] [--hold SECONDS]" >&2
+  echo "usage: tools/demo.sh [--headless] [--hold SECONDS] [--leak SECONDS]" >&2
   exit 2
 }
 while [ "$#" -gt 0 ]; do
@@ -26,6 +31,11 @@ while [ "$#" -gt 0 ]; do
     --hold)
       [ "$#" -ge 2 ] && [[ "$2" =~ ^[0-9]+$ ]] || usage
       hold="$2"
+      shift
+      ;;
+    --leak)
+      [ "$#" -ge 2 ] && [[ "$2" =~ ^[0-9]+$ ]] || usage
+      leak="$2"
       shift
       ;;
     *) usage ;;
@@ -298,11 +308,11 @@ bash "$root/tools/qemu-up.sh"
 bash "$root/tools/stop-agent.sh"
 compile_sensor
 copy_sensor
-FBQ_PRIORITY=8 FBQ_LOKI_HOST=10.0.2.2 FBQ_LOKI_PORT=3100 \
+FBQ_PRIORITY=8 FBQ_LOKI_HOST=10.0.2.2 FBQ_LOKI_PORT=3100 FBQ_PROC_INTERVAL_SEC=1 \
   bash "$root/tools/start-agent.sh"
 
 echo "== 3. leaky_sensor"
-start_sensor 2
+start_sensor "$calm"
 
 echo "== 4. Loki records"
 if ! wait_for info 40 || ! wait_for proc 40; then
@@ -324,6 +334,10 @@ if ! wait_for rose 45 || ! wait_for error 10; then
   exit 1
 fi
 echo "leaky_sensor private memory rose"
+if [ "$leak" -gt 0 ]; then
+  echo "Letting it leak for $leak more seconds"
+  sleep "$leak"
+fi
 
 echo "== 7. Restart leaky_sensor"
 start_sensor 600

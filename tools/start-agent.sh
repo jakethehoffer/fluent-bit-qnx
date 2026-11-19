@@ -2,8 +2,10 @@
 # Start Fluent Bit on the QNX target as one service.
 #
 # Priority is 8 unless FBQ_PRIORITY is set. FBQ_LOKI_HOST and FBQ_LOKI_PORT
-# override the Loki output in the config copied to the target. The storage
-# path written there is $FBQ_TARGET_DIR/storage, not a shell variable.
+# override the Loki output in the config copied to the target.
+# FBQ_PROC_INTERVAL_SEC sets how often qnx_proc scans, in whole seconds (the
+# plugin default is 5). The storage path written there is
+# $FBQ_TARGET_DIR/storage, not a shell variable.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,6 +19,10 @@ if ! [[ "$prio" =~ ^[0-9]+$ ]]; then
 fi
 if [ -n "${FBQ_LOKI_PORT:-}" ] && ! [[ "${FBQ_LOKI_PORT}" =~ ^[0-9]+$ ]]; then
   echo "FBQ_LOKI_PORT must be a whole number" >&2
+  exit 1
+fi
+if [ -n "${FBQ_PROC_INTERVAL_SEC:-}" ] && ! [[ "${FBQ_PROC_INTERVAL_SEC}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "FBQ_PROC_INTERVAL_SEC must be a whole number of seconds, at least 1" >&2
   exit 1
 fi
 if [ -n "${FBQ_LOKI_HOST:-}" ] && ! [[ "${FBQ_LOKI_HOST}" =~ ^[A-Za-z0-9._:-]+$ ]]; then
@@ -63,6 +69,14 @@ fi
 if [ -n "${FBQ_LOKI_PORT:-}" ]; then
   sed -E "s/^([[:space:]]*Port[[:space:]]+).*/\1${FBQ_LOKI_PORT}/" "$tmp" >"$tmp.port"
   mv "$tmp.port" "$tmp"
+fi
+if [ -n "${FBQ_PROC_INTERVAL_SEC:-}" ]; then
+  sed -E "s/^([[:space:]]*)Name([[:space:]]+)qnx_proc[[:space:]]*$/&\n\1interval_sec    ${FBQ_PROC_INTERVAL_SEC}/" "$tmp" >"$tmp.interval"
+  mv "$tmp.interval" "$tmp"
+  if ! grep -E -q "^[[:space:]]*interval_sec[[:space:]]+${FBQ_PROC_INTERVAL_SEC}$" "$tmp"; then
+    echo "qnx_proc interval was not written into the config" >&2
+    exit 1
+  fi
 fi
 if grep -F -q '__TARGET_DIR__' "$tmp" || grep -F -q '$FBQ_TARGET_DIR' "$tmp"; then
   echo "storage path was not written into the config" >&2
