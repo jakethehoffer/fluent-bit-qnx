@@ -1,0 +1,495 @@
+
+<!doctype html>
+
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+  <meta name="theme-color" content="#4F7DC9">
+  <meta charset="UTF-8">
+  <title>Ship QNX logs to a dashboard with Fluent Bit</title>
+
+  <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Source+Code+Pro:400|Roboto:400,300,400italic,500,700|Roboto+Mono">
+  <link rel="stylesheet" href="//fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="../js/codelab-elements.css">
+
+  
+  <style>
+    .success {
+      color: #1e8e3e;
+    }
+    .error {
+      color: red;
+    }
+
+     
+    google-codelab #done {
+      display: none !important;
+    }
+  </style>
+
+</head>
+<body>
+
+
+  <google-codelab codelab-gaid=""
+                  codelab-ga4id=""
+                  id="ship-qnx-logs-fluent-bit"
+                  title="Ship QNX logs to a dashboard with Fluent Bit"
+                  environment="web"
+                  feedback-link="https://github.com/jakethehoffer/fluent-bit-qnx/issues">
+    
+      <google-codelab-step label="Welcome" duration="2">
+        <p>A QNX device in a car or a factory writes its logs to <strong>slog2</strong>, the QNX system logger. That&#39;s fine while you&#39;re sitting next to it with <code>slog2info</code>. Once there are a hundred devices in the field, you want their logs and their health in one place.</p>
+<p>On Linux, that job usually goes to <a href="https://fluentbit.io/" target="_blank">Fluent Bit</a>, a small CNCF agent that reads local logs and ships them somewhere else. In this codelab you&#39;ll use <a href="https://github.com/jakethehoffer/fluent-bit-qnx" target="_blank"><code>fluent-bit-qnx</code></a>, a port of Fluent Bit 5.2.0 to QNX 8.0 with two inputs written for QNX, and run it on QNX 8.0 under QEMU.</p>
+<h2 is-upgraded>What you&#39;ll build</h2>
+<ul>
+<li>A small C program that logs to slog2.</li>
+<li>A Fluent Bit setup on QNX that reads those log lines live, plus the memory and CPU time of the processes you choose.</li>
+<li>A pipeline from QNX to Loki and Grafana on your machine, where you watch a program leak memory.</li>
+<li>A low-priority agent that keeps records on disk while the dashboard is down and sends them when it&#39;s back.</li>
+</ul>
+<h2 class="checklist" is-upgraded>What you&#39;ll learn</h2>
+<ul class="checklist">
+<li>How to cross-build Fluent Bit for QNX 8.0 and run it on a target</li>
+<li>How the <code>slog2</code> input reads the QNX system log</li>
+<li>How the <code>qnx_proc</code> input reports per-process memory and CPU time</li>
+<li>How to ship records off the device with the Loki output</li>
+<li>How to run a log agent so it never gets ahead of the device&#39;s real work</li>
+</ul>
+<p>You need basic shell and C. No QNX experience is assumed.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Before you begin" duration="10">
+        <p>You need a Linux x86_64 machine with KVM. Ubuntu 24.04 under WSL2 on Windows 11 works, and it&#39;s what this codelab was tested on.</p>
+<h2 is-upgraded>A QNX license and the SDP</h2>
+<ol type="1">
+<li>Follow QNX&#39;s codelab <a href="https://qnx.github.io/codelabs/get-non-commercial-qnx-license/" target="_blank">Get a non-commercial QNX license</a> to get your free license.</li>
+<li>In QNX Software Center, install <strong>QNX SDP 8.0</strong> into <code>~/qnx800</code>.</li>
+</ol>
+<h2 is-upgraded>Host tools</h2>
+<p>Install the build tools and QEMU, and let yourself use KVM:</p>
+<pre><code language="language-sh" class="language-sh">sudo apt install git cmake ninja-build qemu-system-x86 qemu-utils python3 curl patch openssh-client
+sudo usermod -aG kvm $USER
+</code></pre>
+<p>Log out and back in (for WSL, run <code>wsl --shutdown</code> from Windows) so the group change takes effect.</p>
+<h2 is-upgraded>About the QNX target</h2>
+<p>QNX&#39;s own QEMU codelabs (<a href="https://qnx.github.io/codelabs/setup-qsti-qemu-on-ubuntu/" target="_blank">on Ubuntu</a>, <a href="https://qnx.github.io/codelabs/qsti-qemu-on-wsl/" target="_blank">on WSL</a>) boot QNX&#39;s Quick Start Target Image. You don&#39;t need that image here. The repository you&#39;ll clone has a script that builds a small QNX 8.0 image from your own SDP and boots it headless, with SSH on port 2222.</p>
+<p><em>When you&#39;re ready, continue.</em></p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Build Fluent Bit for QNX" duration="15">
+        <ol type="1">
+<li>Clone the port and go into it:<pre><code language="language-sh" class="language-sh">git clone https://github.com/jakethehoffer/fluent-bit-qnx.git
+cd fluent-bit-qnx
+</code></pre>
+The repository holds no Fluent Bit source. It pins the Fluent Bit 5.2.0 release tarball by its SHA-256, and keeps the QNX changes as a numbered patch series in <code>patches/</code> and the two QNX inputs in <code>plugins/</code>.</li>
+<li>Load the build environment. This sources the QNX SDP and sets the paths the tools use, such as <code>$FBQ_TARGET_DIR</code>, the install folder on the target:<pre><code language="language-sh" class="language-sh">source tools/env.sh
+</code></pre>
+Do this in every new terminal you use for this codelab.</li>
+<li>Build:<pre><code language="language-sh" class="language-sh">tools/build.sh
+</code></pre>
+The script downloads the tarball (once), checks its SHA-256, applies the patches, copies in the QNX inputs and cross-builds with the SDP&#39;s <code>qcc</code> through CMake and Ninja. The first build takes several minutes. It ends with the path of the QNX binary:<pre><code language="language-text" class="language-text">build ok: /home/you/build/fluent-bit-qnx/bin/fluent-bit
+</code></pre>
+</li>
+<li>Start the QNX target and copy Fluent Bit to it:<pre><code language="language-sh" class="language-sh">tools/qemu-up.sh
+tools/deploy.sh
+</code></pre>
+The first <code>qemu-up.sh</code> builds the image with QNX&#39;s <code>mkqnximage</code>. Later runs reuse it. <code>deploy.sh</code> copies the binary to <code>$FBQ_TARGET_DIR/bin</code>, along with three small helper programs the repository&#39;s own tests use, then runs <code>fluent-bit --version</code> on QNX to prove it starts:<pre><code language="language-text" class="language-text">QNX target up: ssh -i /home/you/.ssh/qnx_target_ed25519 -p 2222 root@127.0.0.1
+deployed helper memhog
+deployed helper spinner
+deployed helper slog2_emit
+Fluent Bit v5.2.0
+/data/fluent-bit-qnx/bin/fluent-bit
+</code></pre>
+</li>
+</ol>
+<p>Positive : The target keeps running in the background. You&#39;ll stop it with <code>tools/qemu-down.sh</code> at the end.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Open a shell on QNX" duration="2">
+        <p>You&#39;ll use two terminals from here on. The first stays on your machine, in the <code>fluent-bit-qnx</code> folder. The second is a shell on QNX.</p>
+<ol type="1">
+<li>Open a second terminal, go to the same folder and load the environment there too:<pre><code language="language-sh" class="language-sh">cd fluent-bit-qnx
+source tools/env.sh
+</code></pre>
+</li>
+<li>Log in to the target. <code>-t</code> gives you a real terminal, so Ctrl+C reaches programs on QNX:<pre><code language="language-sh" class="language-sh">ssh $FBQ_SSH_OPTS -t root@127.0.0.1
+</code></pre>
+</li>
+<li>On QNX, go to the install folder and check that Fluent Bit runs there:<pre><code language="language-shell" class="language-shell">cd /data/fluent-bit-qnx
+uname -a
+LD_LIBRARY_PATH=lib bin/fluent-bit --version
+</code></pre>
+<code>lib</code> is where <code>deploy.sh</code> puts any SDP library the target image lacks (<a href="https://github.com/jakethehoffer/fluent-bit-qnx/blob/main/qnx/target-libs.txt" target="_blank"><code>qnx/target-libs.txt</code></a> lists them). This image has every library Fluent Bit needs, so <code>lib</code> is empty, but keeping <code>LD_LIBRARY_PATH</code> makes the same commands work on an image that needs one:<pre><code language="language-text" class="language-text">QNX qnx-ipc 8.0.0 2026/06/05-16:26:03EDT x86pc x86_64
+Fluent Bit v5.2.0
+Git commit:
+</code></pre>
+</li>
+</ol>
+<p>From now on, a <code>shell</code> block runs in this QNX terminal and an <code>sh</code> block runs in the first terminal on your machine.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Log from a QNX program" duration="8">
+        <p>QNX programs don&#39;t write their logs to a file. They register a <strong>buffer set</strong> with slog2 and write log lines into it, each with a severity. The system logger keeps those lines in memory, and tools read them from there. Start with a program that logs.</p>
+<ol type="1">
+<li>In your first terminal, make a folder for your own files:<pre><code language="language-sh" class="language-sh">mkdir -p my
+</code></pre>
+</li>
+<li>Create <code>my/hello_slog.c</code> with this content:<pre><code language="language-c" class="language-c">#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;sys/slog2.h&gt;
+
+int main(void)
+{
+    slog2_buffer_set_config_t cfg;
+    slog2_buffer_t buffer;
+    int n;
+
+    /* One buffer set called hello_slog, with one 4-page buffer. */
+    memset(&amp;cfg, 0, sizeof(cfg));
+    cfg.buffer_set_name = &#34;hello_slog&#34;;
+    cfg.num_buffers = 1;
+    cfg.verbosity_level = SLOG2_INFO;
+    cfg.buffer_config[0].buffer_name = &#34;main&#34;;
+    cfg.buffer_config[0].num_pages = 4;
+    if (slog2_register(&amp;cfg, &amp;buffer, 0) != 0) {
+        fprintf(stderr, &#34;slog2_register failed\n&#34;);
+        return 1;
+    }
+
+    for (n = 1; ; n++) {
+        slog2f(buffer, 0, SLOG2_INFO, &#34;temperature reading %d: 41 C&#34;, n);
+        if (n % 5 == 0) {
+            slog2c(buffer, 0, SLOG2_WARNING, &#34;fan is running hot&#34;);
+        }
+        sleep(1);
+    }
+}
+</code></pre>
+<code>slog2_register</code> creates the buffer set. <code>slog2f</code> logs a formatted line and <code>slog2c</code> a fixed one. The <code>0</code> before the severity is a code you can use to tag lines. A line with a severity above <code>verbosity_level</code> (less important) is dropped.</li>
+<li>Cross-compile it for QNX and copy it to the target:<pre><code language="language-sh" class="language-sh">qcc -Vgcc_ntox86_64 -Wall -o my/hello_slog my/hello_slog.c -lslog2
+fbq_scp my/hello_slog $FBQ_TARGET_DIR/bin/
+</code></pre>
+</li>
+<li>In the QNX terminal, start it in the background and read its buffer set with <code>slog2info</code>:<pre><code language="language-shell" class="language-shell">bin/hello_slog &amp;
+sleep 6
+slog2info -b hello_slog
+</code></pre>
+You&#39;ll see its lines, each with the time, the buffer set and process id, the buffer, the code and the text. <code>slog2info</code> leaves the severity out by default, but it&#39;s stored with every line:<pre><code language="language-text" class="language-text">Nov 19 07:26:26.107              hello_slog.643093                 main*     0  temperature reading 1: 41 C
+Nov 19 07:26:27.107              hello_slog.643093                 main      0  temperature reading 2: 41 C
+Nov 19 07:26:28.109              hello_slog.643093                 main      0  temperature reading 3: 41 C
+Nov 19 07:26:29.109              hello_slog.643093                 main      0  temperature reading 4: 41 C
+Nov 19 07:26:30.110              hello_slog.643093                 main      0  temperature reading 5: 41 C
+Nov 19 07:26:30.110              hello_slog.643093                 main      0  fan is running hot
+Nov 19 07:26:31.111              hello_slog.643093                 main      0  temperature reading 6: 41 C
+Nov 19 07:26:32.112              hello_slog.643093                 main      0  temperature reading 7: 41 C
+</code></pre>
+</li>
+</ol>
+<p>Leave <code>hello_slog</code> running.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Read the system log with Fluent Bit" duration="8">
+        <p>Fluent Bit works as a pipeline: <strong>inputs</strong> make records, and <strong>outputs</strong> send them somewhere. The <code>slog2</code> input reads the system log live, the way <code>slog2info -w</code> does, and turns each line into a record.</p>
+<ol type="1">
+<li>In your first terminal, create <code>my/slog.conf</code>:<pre><code language="language-ini" class="language-ini">[SERVICE]
+    Flush      1
+    Log_Level  warn
+
+[INPUT]
+    Name   slog2
+    Tag    slog
+    match  hello_slog
+
+[OUTPUT]
+    Name    stdout
+    Match   *
+    Format  json_lines
+</code></pre>
+<code>match</code> keeps only the <code>hello_slog</code> buffer set. Leave it out to read every buffer set on the system. By default the input starts from now and skips older lines (<code>from_now true</code>).</li>
+<li>Copy it to the target:<pre><code language="language-sh" class="language-sh">fbq_scp my/slog.conf $FBQ_TARGET_DIR/
+</code></pre>
+</li>
+<li>In the QNX terminal, run Fluent Bit in the foreground. <code>-q</code> hides the start-up banner:<pre><code language="language-shell" class="language-shell">LD_LIBRARY_PATH=lib bin/fluent-bit -q -c slog.conf
+</code></pre>
+Within a second or two, each new <code>hello_slog</code> line arrives as a JSON record. The first line may be a warning that the input skipped an entry that wasn&#39;t plain text, because the input reads text lines only:<pre><code language="language-text" class="language-text">[2026/11/19 07:20:13.999] [ warn] [input:slog2:slog2.0] slog2 dropped 0, skipped 1
+{&#34;date&#34;:1795072813.996681,&#34;buffer_set&#34;:&#34;hello_slog&#34;,&#34;buffer&#34;:&#34;main&#34;,&#34;severity&#34;:&#34;INFO&#34;,&#34;severity_num&#34;:5,&#34;pid&#34;:1392661,&#34;thread_id&#34;:1,&#34;code&#34;:0,&#34;message&#34;:&#34;temperature reading 12: 41 C&#34;}
+{&#34;date&#34;:1795072814.997759,&#34;buffer_set&#34;:&#34;hello_slog&#34;,&#34;buffer&#34;:&#34;main&#34;,&#34;severity&#34;:&#34;INFO&#34;,&#34;severity_num&#34;:5,&#34;pid&#34;:1392661,&#34;thread_id&#34;:1,&#34;code&#34;:0,&#34;message&#34;:&#34;temperature reading 13: 41 C&#34;}
+{&#34;date&#34;:1795072815.998637,&#34;buffer_set&#34;:&#34;hello_slog&#34;,&#34;buffer&#34;:&#34;main&#34;,&#34;severity&#34;:&#34;INFO&#34;,&#34;severity_num&#34;:5,&#34;pid&#34;:1392661,&#34;thread_id&#34;:1,&#34;code&#34;:0,&#34;message&#34;:&#34;temperature reading 14: 41 C&#34;}
+{&#34;date&#34;:1795072816.999829,&#34;buffer_set&#34;:&#34;hello_slog&#34;,&#34;buffer&#34;:&#34;main&#34;,&#34;severity&#34;:&#34;INFO&#34;,&#34;severity_num&#34;:5,&#34;pid&#34;:1392661,&#34;thread_id&#34;:1,&#34;code&#34;:0,&#34;message&#34;:&#34;temperature reading 15: 41 C&#34;}
+{&#34;date&#34;:1795072816.999831,&#34;buffer_set&#34;:&#34;hello_slog&#34;,&#34;buffer&#34;:&#34;main&#34;,&#34;severity&#34;:&#34;WARNING&#34;,&#34;severity_num&#34;:3,&#34;pid&#34;:1392661,&#34;thread_id&#34;:1,&#34;code&#34;:0,&#34;message&#34;:&#34;fan is running hot&#34;}
+{&#34;date&#34;:1795072818.000713,&#34;buffer_set&#34;:&#34;hello_slog&#34;,&#34;buffer&#34;:&#34;main&#34;,&#34;severity&#34;:&#34;INFO&#34;,&#34;severity_num&#34;:5,&#34;pid&#34;:1392661,&#34;thread_id&#34;:1,&#34;code&#34;:0,&#34;message&#34;:&#34;temperature reading 16: 41 C&#34;}
+</code></pre>
+Every record has <code>buffer_set</code>, <code>buffer</code>, <code>severity</code> (as a name), <code>severity_num</code> (slog2&#39;s number: <code>2</code> is ERROR, <code>3</code> WARNING, <code>5</code> INFO), <code>pid</code>, <code>thread_id</code>, <code>code</code> and <code>message</code>. The output side doesn&#39;t need to know anything about QNX.</li>
+<li>Press Ctrl+C to stop Fluent Bit. It says it will shut down within 5 seconds, the default grace time for sending what it still holds. <code>hello_slog</code> keeps running.</li>
+</ol>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Watch processes with qnx_proc" duration="8">
+        <p>Logs say what a program thinks is happening. To see what it&#39;s doing to the machine, the <code>qnx_proc</code> input reads every process in <code>/proc</code> with QNX&#39;s <code>devctl()</code> calls and reports its threads, CPU time and private memory.</p>
+<p>The repository has a demo program for this, <code>leaky_sensor</code>. It logs a reading every second to its own buffer set, and after a delay grows its buffer by 8 MiB every other second, logging a WARNING and an ERROR each time.</p>
+<ol type="1">
+<li>In your first terminal, build it and copy it to the target:<pre><code language="language-sh" class="language-sh">qcc -Vgcc_ntox86_64 -O2 -Wall -o my/leaky_sensor demo/target/leaky_sensor.c -lslog2
+fbq_scp my/leaky_sensor $FBQ_TARGET_DIR/bin/
+</code></pre>
+</li>
+<li>Create <code>my/proc.conf</code>:<pre><code language="language-ini" class="language-ini">[SERVICE]
+    Flush      1
+    Log_Level  warn
+
+[INPUT]
+    Name          qnx_proc
+    Tag           proc
+    interval_sec  1
+    match         ^(hello_slog|leaky_sensor)$
+
+[OUTPUT]
+    Name    stdout
+    Match   *
+    Format  json_lines
+</code></pre>
+<code>match</code> is a regular expression on the process name, in the same Ruby syntax as Fluent Bit&#39;s <code>grep</code> filter. This one keeps your two programs. Leave it out to report every process. <code>interval_sec 1</code> scans once a second (the default is 5).</li>
+<li>Copy it over:<pre><code language="language-sh" class="language-sh">fbq_scp my/proc.conf $FBQ_TARGET_DIR/
+</code></pre>
+</li>
+<li>In the QNX terminal, start <code>leaky_sensor</code> so it starts leaking after 5 seconds, then run Fluent Bit:<pre><code language="language-shell" class="language-shell">bin/leaky_sensor --leak-after 5 &amp;
+LD_LIBRARY_PATH=lib bin/fluent-bit -q -c proc.conf
+</code></pre>
+Each second brings one record per process. Watch <code>mem_private_bytes</code> for <code>leaky_sensor</code> climb by 8 MiB every other second, while <code>hello_slog</code> stays flat:<pre><code language="language-text" class="language-text">{&#34;date&#34;:1795072828.759436,&#34;pid&#34;:1392661,&#34;name&#34;:&#34;hello_slog&#34;,&#34;threads&#34;:1,&#34;cpu_ns&#34;:2907637,&#34;cpu_user_ns&#34;:2907637,&#34;cpu_system_ns&#34;:0,&#34;mem_private_bytes&#34;:634880}
+{&#34;date&#34;:1795072828.759458,&#34;pid&#34;:1531926,&#34;name&#34;:&#34;leaky_sensor&#34;,&#34;threads&#34;:1,&#34;cpu_ns&#34;:752538,&#34;cpu_user_ns&#34;:752538,&#34;cpu_system_ns&#34;:0,&#34;mem_private_bytes&#34;:634880}
+...
+{&#34;date&#34;:1795072832.763789,&#34;pid&#34;:1392661,&#34;name&#34;:&#34;hello_slog&#34;,&#34;threads&#34;:1,&#34;cpu_ns&#34;:3146911,&#34;cpu_user_ns&#34;:3146911,&#34;cpu_system_ns&#34;:0,&#34;mem_private_bytes&#34;:634880}
+{&#34;date&#34;:1795072832.763924,&#34;pid&#34;:1531926,&#34;name&#34;:&#34;leaky_sensor&#34;,&#34;threads&#34;:1,&#34;cpu_ns&#34;:1470287,&#34;cpu_user_ns&#34;:1470287,&#34;cpu_system_ns&#34;:0,&#34;mem_private_bytes&#34;:9027584}
+{&#34;date&#34;:1795072833.762825,&#34;pid&#34;:1392661,&#34;name&#34;:&#34;hello_slog&#34;,&#34;threads&#34;:1,&#34;cpu_ns&#34;:3440163,&#34;cpu_user_ns&#34;:3440163,&#34;cpu_system_ns&#34;:0,&#34;mem_private_bytes&#34;:634880}
+{&#34;date&#34;:1795072833.762979,&#34;pid&#34;:1531926,&#34;name&#34;:&#34;leaky_sensor&#34;,&#34;threads&#34;:1,&#34;cpu_ns&#34;:1560868,&#34;cpu_user_ns&#34;:1560868,&#34;cpu_system_ns&#34;:0,&#34;mem_private_bytes&#34;:9027584}
+{&#34;date&#34;:1795072834.766262,&#34;pid&#34;:1392661,&#34;name&#34;:&#34;hello_slog&#34;,&#34;threads&#34;:1,&#34;cpu_ns&#34;:4806956,&#34;cpu_user_ns&#34;:4806956,&#34;cpu_system_ns&#34;:0,&#34;mem_private_bytes&#34;:634880}
+{&#34;date&#34;:1795072834.766484,&#34;pid&#34;:1531926,&#34;name&#34;:&#34;leaky_sensor&#34;,&#34;threads&#34;:1,&#34;cpu_ns&#34;:1941073,&#34;cpu_user_ns&#34;:1941073,&#34;cpu_system_ns&#34;:0,&#34;mem_private_bytes&#34;:17420288}
+{&#34;date&#34;:1795072835.766854,&#34;pid&#34;:1392661,&#34;name&#34;:&#34;hello_slog&#34;,&#34;threads&#34;:1,&#34;cpu_ns&#34;:4882047,&#34;cpu_user_ns&#34;:4882047,&#34;cpu_system_ns&#34;:0,&#34;mem_private_bytes&#34;:634880}
+{&#34;date&#34;:1795072835.766888,&#34;pid&#34;:1531926,&#34;name&#34;:&#34;leaky_sensor&#34;,&#34;threads&#34;:1,&#34;cpu_ns&#34;:2001943,&#34;cpu_user_ns&#34;:2001943,&#34;cpu_system_ns&#34;:0,&#34;mem_private_bytes&#34;:17420288}
+{&#34;date&#34;:1795072836.766289,&#34;pid&#34;:1392661,&#34;name&#34;:&#34;hello_slog&#34;,&#34;threads&#34;:1,&#34;cpu_ns&#34;:4928443,&#34;cpu_user_ns&#34;:4928443,&#34;cpu_system_ns&#34;:0,&#34;mem_private_bytes&#34;:634880}
+{&#34;date&#34;:1795072836.766372,&#34;pid&#34;:1531926,&#34;name&#34;:&#34;leaky_sensor&#34;,&#34;threads&#34;:1,&#34;cpu_ns&#34;:2396259,&#34;cpu_user_ns&#34;:2396259,&#34;cpu_system_ns&#34;:0,&#34;mem_private_bytes&#34;:25812992}
+</code></pre>
+<code>cpu_ns</code> is the process&#39;s total CPU time so far (user plus system), so a busy program&#39;s figure grows faster.</li>
+<li>Press Ctrl+C, then stop <code>leaky_sensor</code>:<pre><code language="language-shell" class="language-shell">slay leaky_sensor
+</code></pre>
+</li>
+</ol>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Ship to a dashboard" duration="10">
+        <p>Printing records on the device is a start. Now send them off the device, to Loki (a log store) and Grafana (dashboards) on your machine.</p>
+<ol type="1">
+<li>In your first terminal, start Loki and Grafana. The script downloads pinned releases once, checks their SHA-256, and starts both with a ready-made dashboard:<pre><code language="language-sh" class="language-sh">demo/host/host-up.sh
+</code></pre>
+It prints the dashboard address:<pre><code language="language-text" class="language-text">http://127.0.0.1:3000/d/qnx-fleet/qnx-fleet
+</code></pre>
+</li>
+<li>Create <code>my/ship.conf</code>, with both QNX inputs and the Loki output:<pre><code language="language-ini" class="language-ini">[SERVICE]
+    Flush      1
+    Log_Level  warn
+
+[INPUT]
+    Name   slog2
+    Tag    slog
+
+[INPUT]
+    Name          qnx_proc
+    Tag           proc
+    interval_sec  1
+    match         ^(hello_slog|leaky_sensor)$
+
+[OUTPUT]
+    Name         loki
+    Match        *
+    Host         10.0.2.2
+    Port         3100
+    labels       job=fluent-bit-qnx
+    line_format  json
+</code></pre>
+<code>10.0.2.2</code> is how a QEMU guest on user-mode networking reaches your machine. On a real device you&#39;d put your Loki server&#39;s address there. The dashboard looks for <code>job=fluent-bit-qnx</code>.</li>
+<li>Copy it over:<pre><code language="language-sh" class="language-sh">fbq_scp my/ship.conf $FBQ_TARGET_DIR/
+</code></pre>
+</li>
+<li>In the QNX terminal, start a fresh <code>leaky_sensor</code> that leaks after 20 seconds, then Fluent Bit:<pre><code language="language-shell" class="language-shell">bin/leaky_sensor --leak-after 20 &amp;
+LD_LIBRARY_PATH=lib bin/fluent-bit -q -c ship.conf
+</code></pre>
+Nothing prints this time, because the records go to Loki.</li>
+<li>Open the dashboard address in your browser. Under WSL, open it in Windows. The top panel shows <code>leaky_sensor</code>&#39;s log lines with their severity. The middle panel shows its private memory, flat for 20 seconds, then climbing. The bottom panel shows its CPU use.<img alt="The QNX fleet dashboard while leaky_sensor leaks" src="img/20529376bb3a01ee.png"></li>
+<li>You can also ask Loki directly. In your first terminal, fetch the latest ERROR line from <code>leaky_sensor</code>:<pre><code language="language-sh" class="language-sh">curl -sG http://127.0.0.1:3100/loki/api/v1/query_range \
+  --data-urlencode &#39;query={job=&#34;fluent-bit-qnx&#34;} | json | buffer_set=&#34;leaky_sensor&#34; | severity=&#34;ERROR&#34;&#39; \
+  --data-urlencode &#39;limit=1&#39;
+</code></pre>
+The answer is JSON. Inside it is the record Fluent Bit sent, for example:<pre><code language="language-text" class="language-text">{&#34;buffer_set&#34;:&#34;leaky_sensor&#34;,&#34;buffer&#34;:&#34;main&#34;,&#34;severity&#34;:&#34;ERROR&#34;,&#34;severity_num&#34;:2,&#34;pid&#34;:1593366,&#34;thread_id&#34;:1,&#34;code&#34;:0,&#34;message&#34;:&#34;buffer grew buffer_mib=192&#34;}
+</code></pre>
+</li>
+<li>In the QNX terminal, press Ctrl+C and stop <code>leaky_sensor</code>:<pre><code language="language-shell" class="language-shell">slay leaky_sensor
+</code></pre>
+</li>
+</ol>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Run it like a real-time citizen" duration="10">
+        <p>On a real-time system, the log agent must never hold off the work the device is there to do, and it shouldn&#39;t lose records just because the network is down for a minute. QNX makes the first one easy to set and to check. Fluent Bit handles the second with filesystem buffering.</p>
+<ol type="1">
+<li>In your first terminal, create <code>my/agent.conf</code>. It&#39;s <code>ship.conf</code> plus four settings:<pre><code language="language-ini" class="language-ini">[SERVICE]
+    Flush                 1
+    Log_Level             warn
+    storage.path          /data/fluent-bit-qnx/my-storage
+    scheduler.cap         10
+
+[INPUT]
+    Name           slog2
+    Tag            slog
+    storage.type   filesystem
+
+[INPUT]
+    Name           qnx_proc
+    Tag            proc
+    interval_sec   1
+    match          ^(hello_slog|leaky_sensor)$
+    storage.type   filesystem
+
+[OUTPUT]
+    Name         loki
+    Match        *
+    Host         10.0.2.2
+    Port         3100
+    labels       job=fluent-bit-qnx
+    line_format  json
+    retry_limit  false
+</code></pre>
+<code>storage.path</code> and <code>storage.type filesystem</code> keep each chunk of records in a file until an output has delivered it. <code>retry_limit false</code> keeps retrying a failed chunk instead of dropping it. <code>scheduler.cap 10</code> keeps the wait between retries at 10 seconds or less, so delivery resumes soon after the network comes back.</li>
+<li>Copy it over:<pre><code language="language-sh" class="language-sh">fbq_scp my/agent.conf $FBQ_TARGET_DIR/
+</code></pre>
+</li>
+<li>In the QNX terminal, start the agent in the background with <code>on -p 8</code>. QNX runs higher priorities first, and ordinary programs run at 10, so at 8 the agent only gets the CPU when the device&#39;s own work doesn&#39;t need it:<pre><code language="language-shell" class="language-shell">LD_LIBRARY_PATH=lib on -p 8 bin/fluent-bit -q -c agent.conf &gt; agent-my.log 2&gt;&amp;1 &amp;
+sleep 2
+pidin -p fluent-bit -F &#34;%a %b %p %n&#34;
+</code></pre>
+Every thread of the agent shows priority 8. The <code>r</code> after it is the scheduling policy, round-robin:<pre><code language="language-text" class="language-text">     pid tid prio name
+  679958   1   8r bin/fluent-bit
+  679958   2   8r bin/fluent-bit
+  679958   3   8r bin/fluent-bit
+  679958   4   8r bin/fluent-bit
+  679958   5   8r bin/fluent-bit
+     ...
+</code></pre>
+</li>
+<li>Now take the dashboard away. In your first terminal, stop Loki and Grafana:<pre><code language="language-sh" class="language-sh">demo/host/host-down.sh
+</code></pre>
+</li>
+<li>Wait about 15 seconds, then in the QNX terminal look in the storage folder:<pre><code language="language-shell" class="language-shell">ls my-storage/*
+</code></pre>
+The records <code>hello_slog</code> and <code>qnx_proc</code> made while Loki was away are waiting on disk, in chunk files (<code>.flb</code>) under one folder per input:<pre><code language="language-text" class="language-text">my-storage/qnx_proc.1:
+679958-1795073203.700396625.flb  679958-1795073212.732448717.flb
+679958-1795073204.702840277.flb  679958-1795073213.729494797.flb
+679958-1795073205.714438820.flb  679958-1795073214.721877685.flb
+679958-1795073206.719374959.flb  679958-1795073215.752929453.flb
+679958-1795073207.745263742.flb  679958-1795073216.733825008.flb
+679958-1795073208.721112509.flb  679958-1795073217.751856258.flb
+679958-1795073209.726630817.flb  679958-1795073218.730169289.flb
+679958-1795073210.726410571.flb  679958-1795073219.727065285.flb
+679958-1795073211.725836716.flb  679958-1795073220.737196746.flb
+
+my-storage/slog2.0:
+679958-1795073204.433357904.flb  679958-1795073213.40033861.flb
+679958-1795073204.978854924.flb  679958-1795073214.238589567.flb
+679958-1795073206.229948926.flb  679958-1795073215.340941868.flb
+679958-1795073207.333620668.flb  679958-1795073216.458281079.flb
+679958-1795073208.439091958.flb  679958-1795073217.559412639.flb
+679958-1795073209.13028813.flb   679958-1795073218.78836730.flb
+679958-1795073210.235710128.flb  679958-1795073219.248095256.flb
+679958-1795073211.337657429.flb  679958-1795073220.349836045.flb
+679958-1795073212.440312306.flb
+# ls my-storage/*
+my-storage/qnx_proc.1:
+679958-1795073260.775633715.flb
+
+my-storage/slog2.0:
+@@ block 45
+# slay fluent-bit hello_slog
+[1] - Terminated           bin/hello_slog
+</code></pre>
+</li>
+<li>Bring the dashboard back:<pre><code language="language-sh" class="language-sh">demo/host/host-up.sh
+</code></pre>
+</li>
+<li>Wait about 15 seconds, then look again:<pre><code language="language-shell" class="language-shell">ls my-storage/*
+</code></pre>
+The waiting chunks have been delivered and removed. At most a chunk that is still filling remains:<pre><code language="language-text" class="language-text">my-storage/qnx_proc.1:
+679958-1795073260.775633715.flb
+
+my-storage/slog2.0:
+</code></pre>
+On the dashboard, set the <strong>name</strong> control to <strong>All</strong> and the <code>hello_slog</code> lines from the time Loki was down are there.</li>
+</ol>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Clean up" duration="2">
+        <ol type="1">
+<li>In the QNX terminal, stop everything you started, then log out:<pre><code language="language-shell" class="language-shell">slay fluent-bit hello_slog
+exit
+</code></pre>
+</li>
+<li>In your first terminal, stop Loki and Grafana, then the QNX target:<pre><code language="language-sh" class="language-sh">demo/host/host-down.sh
+tools/qemu-down.sh
+</code></pre>
+</li>
+</ol>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="What&#39;s next" duration="2">
+        <p>You built Fluent Bit for QNX 8.0, read the QNX system log and per-process memory with it, shipped both to a dashboard, and ran the agent at a priority below the device&#39;s real work with records kept on disk through an outage.</p>
+<ul>
+<li>Run <code>tools/demo.sh</code> for the full narrated demo, which also restarts <code>leaky_sensor</code> and checks that its memory drops.</li>
+<li>The <a href="https://github.com/jakethehoffer/fluent-bit-qnx#readme" target="_blank">README</a> lists every config key of the two QNX inputs, what is tested on QNX, and the known limits.</li>
+<li><a href="https://github.com/jakethehoffer/fluent-bit-qnx/blob/main/docs/porting-notes.md" target="_blank"><code>docs/porting-notes.md</code></a> explains each QNX patch.</li>
+<li>The core of the port is offered upstream as <a href="https://github.com/fluent/fluent-bit/pull/12811" target="_blank">fluent/fluent-bit#12811</a>.</li>
+<li>Fluent Bit has many more outputs (HTTP, forward, OpenTelemetry and others), and its filters can drop, rename or enrich records on the device before they leave.</li>
+</ul>
+
+
+      </google-codelab-step>
+    
+  </google-codelab>
+
+  <script src="../js/native-shim.js"></script>
+  <script src="../js/custom-elements.min.js"></script>
+  <script src="../js/prettify.js"></script>
+  <script src="../js/codelab-elements.js"></script>
+  <script src="//support.google.com/inapp/api.js"></script>
+
+  <script>
+    
+    navigation.addEventListener("navigate", (event) => {
+    const url = new URL(event.destination.url);
+
+    if (url.pathname == "/") {
+      window.location.href = "https://qnx.github.io/codelabs/";
+    }
+  });
+  </script>
+
+</body>
+</html>

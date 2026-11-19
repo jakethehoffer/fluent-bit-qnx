@@ -2,7 +2,7 @@
 
 [Fluent Bit](https://fluentbit.io/) 5.2.0, the CNCF graduated log and telemetry agent, ported to QNX 8.0, with two new inputs written for QNX. `slog2` reads the QNX system log live. `qnx_proc` reports CPU time and private memory for every process. One script cross-builds it with the QNX SDP 8.0 toolchain, and one script runs a demo in which a QNX 8.0 machine ships its logs and process data to a dashboard on the host.
 
-It runs today on QNX 8.0 x86_64 under QEMU. The latest full check built it from clean, ran 20 tests on the QNX target plus the demo check, and all of them passed ([docs/test-log.txt](docs/test-log.txt)). What is not done is listed once, under [Limits](#limits). Built for the QNX Global Hackathon 2026.
+It runs today on QNX 8.0 x86_64 under QEMU. The latest full check built it from clean, ran 21 tests on the QNX target plus the demo check, and all of them passed ([docs/test-log.txt](docs/test-log.txt)). What is not done is listed once, under [Limits](#limits). Built for the QNX Global Hackathon 2026.
 
 ![QNX fleet dashboard](docs/images/dashboard.png)
 
@@ -28,7 +28,7 @@ Earlier work we found:
 | dummy | Synthetic input records | [`http_delivers_dummy_records`](tests/test_outputs.sh) |
 | tail | Lines appended to a file, in order, once each | [`tail_delivers_appended_lines_in_order`](tests/test_outputs.sh), [`0010`](patches/0010-in_tail-resolve-the-file-name-with-iofdinfo-on-QNX.patch), [`0011`](patches/0011-in_tail-drop-output-only-bits-from-the-inotify-mask-.patch) |
 | slog2 | QNX system-log input | [`slog2_lines_arrive_with_severity`](tests/test_slog2.sh), [`slog2_from_now_skips_history`](tests/test_slog2.sh), [`slog2_match_filters_buffer_sets`](tests/test_slog2.sh), [`slog2_shutdown_is_clean`](tests/test_slog2.sh) |
-| qnx_proc | One record per process: name, threads, CPU time, private memory | [`proc_reports_named_process`](tests/test_qnx_proc.sh), [`proc_cpu_increases_for_spinner`](tests/test_qnx_proc.sh), [`proc_match_filters_names`](tests/test_qnx_proc.sh), [`proc_survives_short_lived_processes`](tests/test_qnx_proc.sh) |
+| qnx_proc | One record per process: name, threads, CPU time, private memory | [`proc_reports_named_process`](tests/test_qnx_proc.sh), [`proc_cpu_increases_for_spinner`](tests/test_qnx_proc.sh), [`proc_match_filters_names`](tests/test_qnx_proc.sh), [`proc_match_syntax`](tests/test_qnx_proc.sh), [`proc_survives_short_lived_processes`](tests/test_qnx_proc.sh) |
 | stdout | Prints a record on the target | [`tools/smoke.sh`](tools/smoke.sh) (not part of `tools/test-all.sh`) |
 | http | Delivers records to a host listener | [`http_delivers_dummy_records`](tests/test_outputs.sh), [`tail_delivers_appended_lines_in_order`](tests/test_outputs.sh) |
 | forward | Delivers every tail line once | [`forward_delivers_every_tail_line`](tests/test_outputs.sh) |
@@ -69,6 +69,8 @@ tools/demo.sh           # agent, leaky_sensor and the live dashboard, narrated
 ```bash
 tools/demo-check.sh
 ```
+
+A step-by-step codelab, [Ship QNX logs to a dashboard with Fluent Bit](https://jakethehoffer.github.io/fluent-bit-qnx/codelabs-site/ship-qnx-logs-fluent-bit/), builds the same pieces by hand: a small slog2 program, both QNX inputs, the Loki output, and a priority-8 agent that keeps records on disk while Loki is down. Its source is [docs/codelab/ship-qnx-logs-fluent-bit](docs/codelab/ship-qnx-logs-fluent-bit/ship-qnx-logs-fluent-bit.md).
 
 The full check (patches, a clean build, every on-machine test, and the demo check) is:
 
