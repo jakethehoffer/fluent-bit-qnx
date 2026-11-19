@@ -35,7 +35,7 @@ Earlier work we found:
 | loki | Pushes records to Loki | [`loki_push_received`](tests/test_outputs.sh), [`tools/demo-check.sh`](tools/demo-check.sh) |
 | two output workers | Shutdown finishes with no pending tasks | [`two_workers_shutdown_clean`](tests/test_outputs.sh) |
 | poll event loop | The QNX build selects `poll` | [`qnx/cmake-options.txt`](qnx/cmake-options.txt) (`FLB_EVENT_LOOP_POLL`). The tests above run that binary |
-| filesystem storage, process still up | Records wait on disk while the receiver is down, then arrive | [`agent_buffers_while_receiver_down_then_delivers`](tests/test_service.sh) |
+| filesystem storage | Records wait in chunk files on disk while the receiver is down, then arrive, also after the agent is stopped and started again | [`agent_buffers_while_receiver_down_then_delivers`](tests/test_service.sh), [`agent_keeps_saved_records_across_restart`](tests/test_service.sh) |
 | priority-8 service | The agent runs at the configured priority and stops cleanly | [`agent_runs_at_configured_priority`](tests/test_service.sh), [`agent_stops_cleanly`](tests/test_service.sh) |
 
 `cpu_ns` and `mem_private_bytes` in the records are figures about the processes the agent watches, such as the demo program `leaky_sensor`.
@@ -128,9 +128,9 @@ Both inputs keep the rest of a batch when one record cannot be encoded, and repo
 
 [`qnx/fluent-bit.conf`](qnx/fluent-bit.conf) is the agent. [`tools/start-agent.sh`](tools/start-agent.sh) copies it to the target and replaces `__TARGET_DIR__` with the real directory, so the agent does not depend on its environment. [`tools/stop-agent.sh`](tools/stop-agent.sh) sends SIGTERM and waits until the process has exited 0.
 
-The service sets `storage.path` to `$FBQ_TARGET_DIR/storage` (the file contains `__TARGET_DIR__/storage`) and `storage.max_chunks_up 128`. Each input uses `mem_buf_limit 5M` and `storage.type filesystem`. The Loki output uses host `10.0.2.2`, port `3100`, `labels job=fluent-bit-qnx`, and `retry_limit false`. `FBQ_LOKI_HOST` and `FBQ_LOKI_PORT` override the host and port on the copy start-agent writes.
+The service sets `storage.path` to `$FBQ_TARGET_DIR/storage` (the file contains `__TARGET_DIR__/storage`) and `storage.max_chunks_up 128`. Each input uses `mem_buf_limit 5M` and `storage.type filesystem`. The Loki output uses host `10.0.2.2`, port `3100`, `labels job=fluent-bit-qnx`, `retry_limit false`, and `storage.total_limit_size 32M`. `FBQ_LOKI_HOST` and `FBQ_LOKI_PORT` override the host and port on the copy start-agent writes.
 
-`retry_limit false` keeps a chunk that could not be sent. [`agent_buffers_while_receiver_down_then_delivers`](tests/test_service.sh) covers that path while the process stays up.
+`retry_limit false` keeps a chunk that could not be sent. `storage.total_limit_size 32M` caps those chunks so a long outage cannot fill the 61 MB `/data` partition: past the cap, Fluent Bit drops the oldest chunks for that output. [`agent_buffers_while_receiver_down_then_delivers`](tests/test_service.sh) checks that the records are in chunk files on the target while the receiver is down, then arrive. [`agent_keeps_saved_records_across_restart`](tests/test_service.sh) stops the agent during the outage, starts it again, and checks that the same records arrive once each and their chunk files are then removed. slog2 reads from now, so after the restart those records can only come from disk.
 
 [`tools/start-agent.sh`](tools/start-agent.sh) launches Fluent Bit with `on -p 8` unless `FBQ_PRIORITY` is set. The priority is 8 so ordinary priority-10 work stays ahead of log shipping ([docs/porting-notes.md](docs/porting-notes.md)). [`agent_runs_at_configured_priority`](tests/test_service.sh) reads every thread of the fluent-bit pid. [`agent_stops_cleanly`](tests/test_service.sh) checks the exit status. Test helpers that start Fluent Bit themselves still use priority 10.
 
@@ -171,7 +171,7 @@ Jake Hoffman built this by directing AI coding agents. The port was implemented 
 ## Limits
 
 - x86_64 only. aarch64 is not built.
-- Not exercised yet: saved chunks coming back after the agent restarts, TLS to a real endpoint, tail `db=`, and file rotation.
+- Not exercised yet: TLS to a real endpoint, tail `db=`, and file rotation.
 - Unix-socket peer pid is unavailable on QNX ([`0009`](patches/0009-network-skip-SO_PEERCRED-unix-socket-peer-pid-on-QNX.patch)).
 - slog2: the parser's queue drops its oldest packets when it is full, and a parser thread still blocked inside `slog2_parse_all` is not reclaimed during an in-process reload ([buffering and shutdown limits](docs/porting-notes.md#slog2-buffering-and-shutdown-limits)).
 - Dashboard: the name control is a fixed choice in the dashboard file, not a live list, and NOTICE lines share the INFO color (the line itself still says NOTICE).

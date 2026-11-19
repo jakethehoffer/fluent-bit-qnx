@@ -1,5 +1,5 @@
 date: 2026-11-19
-commit: cd386c0
+commit: 5a2143e plus local changes
 fluent-bit: 5.2.0
 patches: 12
 qnx-toolchain: ntox86_64-gcc (QNX8.0.0-rfe1c11236e8a392fdc575fe111bbc8aa4f10d82b-500) 12.2.0
@@ -21,6 +21,7 @@ proc_survives_short_lived_processes ok
 proc_bad_match_exits ok
 agent_runs_at_configured_priority ok
 agent_buffers_while_receiver_down_then_delivers ok
+agent_keeps_saved_records_across_restart ok
 agent_stops_cleanly ok
 slog2_lines_arrive_with_severity ok
 slog2_from_now_skips_history ok

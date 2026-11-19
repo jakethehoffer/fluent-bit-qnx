@@ -70,4 +70,4 @@ These results cover the named scenarios, not every failure path or the open gaps
 
 ## Still open
 
-A live process-name list, a colored NOTICE line, and saved chunks coming back after a restart are still open. So are aarch64, TLS to a real endpoint, tail `db=`, rotation, and unix-socket peer pid. The engineering notes are [porting-notes.md](porting-notes.md). No upstream pull request is open. [fluent/fluent-bit#8757](https://github.com/fluent/fluent-bit/issues/8757) is the stale request.
+A live process-name list and a colored NOTICE line are still open. Saved chunks coming back after a restart now have a test (`agent_keeps_saved_records_across_restart`). So are aarch64, TLS to a real endpoint, tail `db=`, rotation, and unix-socket peer pid. The engineering notes are [porting-notes.md](porting-notes.md). No upstream pull request is open. [fluent/fluent-bit#8757](https://github.com/fluent/fluent-bit/issues/8757) is the stale request.

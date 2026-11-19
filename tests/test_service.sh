@@ -332,6 +332,49 @@ REMOTE
   } | fbq_ssh sh -s >/dev/null
 }
 
+# Wait until the slog2 input's chunk files on the target hold (want=present)
+# or no longer hold (want=gone) the last test record, svc-20. Chunk files are
+# uncompressed msgpack, so the record text is in them as plain bytes.
+wait_chunk_files() {
+  local want="$1"
+  local i=0
+  local result
+  while [ "$i" -lt 15 ]; do
+    result="$(
+      {
+        echo "dir=$FBQ_TARGET_DIR"
+        cat <<'REMOTE'
+found=no
+for f in "$dir"/storage/slog2.*/*.flb; do
+  [ -f "$f" ] || continue
+  if grep -F -q "svc-20" "$f" 2>/dev/null; then
+    found=yes
+  fi
+done
+echo "CHUNK=$found"
+REMOTE
+      } | fbq_ssh sh -s
+    )"
+    if [ "$want" = present ] && printf '%s\n' "$result" | grep -q '^CHUNK=yes$'; then
+      return 0
+    fi
+    if [ "$want" = gone ] && printf '%s\n' "$result" | grep -q '^CHUNK=no$'; then
+      return 0
+    fi
+    sleep 1
+    i=$((i + 1))
+  done
+  echo "slog2 chunk files: wanted the records $want" >&2
+  {
+    echo "dir=$FBQ_TARGET_DIR"
+    cat <<'REMOTE'
+ls -lR "$dir/storage" 2>&1 || true
+REMOTE
+  } | fbq_ssh sh -s >&2 || true
+  show_agent_log
+  return 1
+}
+
 agent_state() {
   {
     echo "dir=$FBQ_TARGET_DIR"
@@ -368,8 +411,34 @@ agent_buffers_while_receiver_down_then_delivers() {
   start_emit fbq-service svc
   emit_cmd svc "log svc 20"
   wait_slog_flush_failed
+  wait_chunk_files present
   start_receiver
   wait_records
+}
+
+# Records saved while the receiver is down survive a stop and start of the
+# agent. slog2 reads from now by default, so after the restart the old
+# records can only come from the chunk files left on disk.
+agent_keeps_saved_records_across_restart() {
+  need_tool tools/start-agent.sh
+  need_tool tools/stop-agent.sh
+  begin_case
+  trap 'stop_emits; stop_quiet; stop_receiver || true' EXIT
+  stop_emits
+  stop_quiet
+  clear_storage
+  start_loki_receiver
+  start_emit fbq-service rst
+  emit_cmd rst "log svc 20"
+  wait_slog_flush_failed
+  wait_chunk_files present
+  stop_emits
+  "$root/tools/stop-agent.sh"
+  wait_chunk_files present
+  start_receiver
+  start_loki_receiver
+  wait_records
+  wait_chunk_files gone
 }
 
 agent_stops_cleanly() {
@@ -403,5 +472,6 @@ fi
 set +e
 run agent_runs_at_configured_priority agent_runs_at_configured_priority
 run agent_buffers_while_receiver_down_then_delivers agent_buffers_while_receiver_down_then_delivers
+run agent_keeps_saved_records_across_restart agent_keeps_saved_records_across_restart
 run agent_stops_cleanly agent_stops_cleanly
 exit "$fail"
