@@ -1,3 +1,5 @@
+date: 2026-11-19
+commit: cd386c0
 fluent-bit: 5.2.0
 patches: 12
 qnx-toolchain: ntox86_64-gcc (QNX8.0.0-rfe1c11236e8a392fdc575fe111bbc8aa4f10d82b-500) 12.2.0

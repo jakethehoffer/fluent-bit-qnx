@@ -38,6 +38,9 @@ slog2_shutdown_is_clean ok
 The integration script returned zero. The compiled plugin source matched the
 working source (SHA-256
 `ea3e3d2d82f311c4f4570c7f8b4a8d15a9d00b8960e5b65fab14af8a041f62d8`).
+On 2026-11-19 a licence header was added to the plugin source (no code change). Its
+SHA-256 is now `380c1a5b6391aecc82975b9003f106d66eeb79c89cbdf80c5dc355ace8217a19`, and the
+full suite at cd386c0, including `slog2_stop_reclaims_queue_and_thread`, passed with it.
 The tests stop only emitter processes they started, using their recorded IDs.
 
 This verifies the plugin's ownership and cleanup, not the internals of QNX's parser.
