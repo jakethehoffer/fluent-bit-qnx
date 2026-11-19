@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 Jake Hoffman */
+
 /* Run the shipped qnx_proc scan against the real /proc on the QNX target.
  * Only the record encoder, the hand-off to Fluent Bit and the logger are
  * fakes, so one record or one hand-off can be made to fail on purpose. */

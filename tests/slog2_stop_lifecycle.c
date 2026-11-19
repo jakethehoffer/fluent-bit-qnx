@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 Jake Hoffman */
+
 /* Exercise the production stop/callback code with real QNX threads. Only the
  * blocking parser and timed-join outcome are controlled to force each race. */
 #undef NDEBUG

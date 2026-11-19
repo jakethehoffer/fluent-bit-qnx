@@ -1,9 +1,10 @@
 # Single-process Loki. FBQ_DEMO_DATA is set by demo/host/host-up.sh.
-# HTTP listens on every interface so the QNX guest can reach 10.0.2.2:3100.
+# HTTP listens on loopback only. The QNX guest still reaches it at 10.0.2.2:3100,
+# because QEMU user-mode networking turns that address into a host 127.0.0.1 connection.
 auth_enabled: false
 
 server:
-  http_listen_address: 0.0.0.0
+  http_listen_address: 127.0.0.1
   http_listen_port: 3100
   grpc_listen_address: 127.0.0.1
   grpc_listen_port: 9096

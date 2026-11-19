@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 """Reuse the real plugin's compiler/include settings for the lifecycle test."""
 import json
 import pathlib

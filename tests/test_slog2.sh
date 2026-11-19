@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # QNX slog2 input tests. Prints "<name> ok" or "<name> FAILED".
 set -u
 

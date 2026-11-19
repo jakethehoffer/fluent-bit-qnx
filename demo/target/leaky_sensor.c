@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 Jake Hoffman */
+
 #include <errno.h>
 #include <signal.h>
 #include <stdint.h>

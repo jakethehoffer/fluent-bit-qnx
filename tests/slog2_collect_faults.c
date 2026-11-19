@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 Jake Hoffman */
+
 /* Run the shipped slog2 collect step on the QNX target with queued packets.
  * Only the record encoder, the hand-off to Fluent Bit and the logger are
  * fakes, so one record or one hand-off can be made to fail on purpose. */

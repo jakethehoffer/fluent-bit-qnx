@@ -15,7 +15,7 @@ Signed-off-by: Jake Hoffman <122403457+jakethehoffer@users.noreply.github.com>
  1 file changed, 2 insertions(+)
 
 diff --git a/plugins/CMakeLists.txt b/plugins/CMakeLists.txt
-index 1111111..2222222 100644
+index 16a1257..16c7948 100644
 --- a/plugins/CMakeLists.txt
 +++ b/plugins/CMakeLists.txt
 @@ -283,5 +283,7 @@ REGISTER_IN_PLUGIN("in_emitter")

@@ -4,7 +4,7 @@ This runs the QNX agent against a local Loki and Grafana so slog2 lines and per-
 
 ## What you get
 
-- Loki on `0.0.0.0:3100`, with files under `$HOME/.local/share/fluent-bit-qnx-demo`.
+- Loki on `127.0.0.1:3100`, with files under `$HOME/.local/share/fluent-bit-qnx-demo`.
 - Grafana on `127.0.0.1:3000`, anonymous viewer, dashboard at `/d/qnx-fleet/qnx-fleet`.
 - Panel 1: slog2 lines from the buffer sets the `name` filter selects (All shows every buffer set). Each line keeps its QNX severity, and the level color is ERROR red, WARNING yellow, INFO and NOTICE blue.
 - Panel 2: `mem_private_bytes` per process name (`unwrap` on `qnx_proc` records).

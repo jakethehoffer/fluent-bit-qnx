@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Run the live demo and check that Loki stored it.
 #
 #   tools/demo-check.sh

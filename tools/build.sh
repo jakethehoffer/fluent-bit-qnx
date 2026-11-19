@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Build Fluent Bit 5.2.0 for QNX 8.0 x86_64 with the patch series in patches/.
 #
 #   tools/build.sh [--clean]

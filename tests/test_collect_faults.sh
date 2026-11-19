@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # One bad record, a refused hand-off and a flood of unreadable processes,
 # run through the shipped collect code on the QNX target. Only the record
 # encoder, the hand-off to Fluent Bit and the logger are fakes.

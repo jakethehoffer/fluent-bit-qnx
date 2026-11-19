@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Stop the Loki and Grafana processes started by demo/host/host-up.sh.
 set -euo pipefail
 

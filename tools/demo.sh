@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Narrated live demo: slog2 and qnx_proc on a local Grafana dashboard.
 #
 #   tools/demo.sh [--headless] [--hold SECONDS] [--leak SECONDS]

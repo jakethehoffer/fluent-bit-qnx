@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Start Fluent Bit on the QNX target as one service.
 #
 # Priority is 8 unless FBQ_PRIORITY is set. FBQ_LOKI_HOST and FBQ_LOKI_PORT

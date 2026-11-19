@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Run every tests/test_*.sh on the QNX target. Prints "<name> ok" or "<name> FAILED".
 set -euo pipefail
 

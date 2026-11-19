@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 Jake Hoffman */
+
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>

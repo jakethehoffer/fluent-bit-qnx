@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Print the path of the pinned upstream Fluent Bit tarball, downloading it into the cache
 # ($FBQ_TARBALL_CACHE, default ~/.cache/fluent-bit-qnx) only when it is missing or its
 # SHA-256 differs from UPSTREAM. Progress goes to stderr; stdout is just the path.

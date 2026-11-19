@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Stop the Fluent Bit agent started by tools/start-agent.sh.
 # SIGTERM, then wait until it has exited 0 and pidin shows no fluent-bit.
 set -euo pipefail

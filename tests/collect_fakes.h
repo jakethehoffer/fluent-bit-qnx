@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 Jake Hoffman */
+
 /* Shared fakes for the collect fault tests. Include after the Fluent Bit
  * headers and before the plugin source. Only the record encoder, the hand-off
  * to Fluent Bit and the plugin logger are replaced. Everything else in the

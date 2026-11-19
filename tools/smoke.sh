@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Smoke test: Fluent Bit on the QNX 8.0 QEMU target.
 #
 #   tools/smoke.sh

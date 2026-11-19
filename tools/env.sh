@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Source this file (do not run it): sets up QNX SDP 8.0 and the paths used by tools/.
 #
 #   source tools/env.sh

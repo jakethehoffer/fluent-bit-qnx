@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Started by on(1) so it outlives the ssh session that launched it.
 # Args: binary, config, log, pid-file, exit-file.
 bin=$1

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 """Build a standalone test that includes one QNX plugin's source.
 
     python3 tests/build_plugin_test.py <FBQ_BUILD> <plugin.c> <test.c> <output>

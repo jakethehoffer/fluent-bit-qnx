@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 """Host receiver for Fluent Bit delivery tests.
 
 Listens for out_http JSON, the Fluent Forward protocol, and Loki push JSON.

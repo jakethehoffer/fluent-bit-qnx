@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Helpers for tests/test_*.sh. Source this file. Do not run it.
 # shellcheck disable=SC1091
 

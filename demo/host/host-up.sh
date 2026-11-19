@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Download, verify, and start the pinned Loki and Grafana binaries.
-# Loki listens on 0.0.0.0:3100. Grafana listens on 127.0.0.1:3000.
+# Loki listens on 127.0.0.1:3100. Grafana listens on 127.0.0.1:3000.
 # Archives stay in $HOME/.cache/fluent-bit-qnx-demo and are not part of the repo.
 set -euo pipefail
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Copy the built fluent-bit to the QNX target and print its path on the target.
 #
 #   tools/deploy.sh

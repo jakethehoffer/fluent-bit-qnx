@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Check the patch series in patches/ (or $FBQ_PATCH_DIR). Exits non-zero when:
 #   - there are no patches
 #   - a patch contains a NUL byte

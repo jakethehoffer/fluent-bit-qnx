@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Jake Hoffman
 # Full check, then docs/test-log.txt.
 #
 #   tools/test-all.sh
 #
 # Runs tools/check-patches.sh, a clean tools/build.sh, tools/test-target.sh
 # and tools/demo-check.sh. The log names each result as ok or FAILED, and
-# records the Fluent Bit version, the patch count and the QNX toolchain
+# records the run date, the commit tested (marked when the tree had local
+# changes), the Fluent Bit version, the patch count and the QNX toolchain
 # version. It does not record timings.
 set -euo pipefail
 
@@ -61,6 +64,19 @@ toolchain_version() {
   printf '%s\n' "$line"
 }
 
+tested_commit() {
+  local sha
+  sha="$(git -C "$root" rev-parse --short=7 HEAD 2>/dev/null || true)"
+  if [ -z "$sha" ]; then
+    printf 'unknown\n'
+    return 0
+  fi
+  if [ -n "$(git -C "$root" status --porcelain --untracked-files=no -- . ':!docs/test-log.txt' 2>/dev/null)" ]; then
+    sha="$sha plus local changes"
+  fi
+  printf '%s\n' "$sha"
+}
+
 patch_count() {
   local n
   n="$(sed -n 's/^check-patches ok (\([0-9][0-9]*\) patches)$/\1/p' "$workdir/check-patches.out" 2>/dev/null | head -n 1 || true)"
@@ -90,14 +106,18 @@ test_names() {
 }
 
 write_log() {
-  local fb_ver toolchain count name
+  local fb_ver toolchain count name commit run_date
   [ "$log_written" -eq 0 ] || return 0
   log_written=1
   fb_ver="$(fluent_bit_version)"
   toolchain="$(toolchain_version)"
   count="$(patch_count)"
+  commit="$(tested_commit)"
+  run_date="$(date +%F)"
   mkdir -p "$(dirname "$log")"
   {
+    printf 'date: %s\n' "$run_date"
+    printf 'commit: %s\n' "$commit"
     printf 'fluent-bit: %s\n' "$fb_ver"
     printf 'patches: %s\n' "$count"
     printf 'qnx-toolchain: %s\n' "$toolchain"
