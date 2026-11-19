@@ -111,7 +111,7 @@ Config keys in [`plugins/in_qnx_proc/in_qnx_proc.c`](plugins/in_qnx_proc/in_qnx_
 | --- | --- | --- |
 | `interval_sec` | `5` | Seconds between process scans |
 | `interval_nsec` | `0` | Extra nanoseconds between scans |
-| `match` | empty | Regular expression applied to the process name through the bundled Onigmo compatibility API. Do not assume full POSIX extended syntax. Empty reports every process it can read. The plugin skips its own process unless `include_self` is on |
+| `match` | empty | Regular expression applied to the process name, in the same Ruby syntax as Fluent Bit's grep filter (for example `^(memhog|spinner)$`). It is case sensitive and matches anywhere in the name unless anchored. Empty reports every process it can read. The plugin skips its own process unless `include_self` is on |
 | `include_self` | `false` | Also report this Fluent Bit process |
 
 Record fields: `pid`, `name`, `threads`, `cpu_ns`, `cpu_user_ns`, `cpu_system_ns`, `mem_private_bytes`.

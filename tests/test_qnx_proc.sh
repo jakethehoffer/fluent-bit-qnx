@@ -94,6 +94,12 @@ elif kind == "match":
     if not recs or any(rec.get("name") != "memhog" for rec in recs):
         sys.stderr.write("names: %s\n" % [rec.get("name") for rec in recs[:8]])
         sys.exit(1)
+elif kind == "syntax":
+    alt = {(row.get("record") or {}).get("name") for row in rows if row.get("tag") == "proc.alt"}
+    case = [(row.get("record") or {}).get("name") for row in rows if row.get("tag") == "proc.case"]
+    if alt != {"memhog", "spinner"} or case:
+        sys.stderr.write("alt names: %s case names: %s\n" % (sorted(map(str, alt)), case[:8]))
+        sys.exit(1)
 else:
     sys.exit(2)
 ' "$1" "$OUT"
@@ -129,6 +135,20 @@ proc_match_filters_names() {
   start_fb "$root/tests/configs/qnx-proc-match.conf"
   sleep 4
   check_proc match
+}
+
+# match uses Fluent Bit's regex syntax: alternation works and case matters.
+# The bundled Onigmo regcomp misread QNX <regex.h> flags (basic syntax and
+# ignore case), which this case catches.
+proc_match_syntax() {
+  begin_case
+  trap 'stop_helpers; stop_fb >/dev/null 2>&1 || true; stop_receiver || true' EXIT
+  start_helper memhog 64
+  start_helper spinner
+  start_receiver
+  start_fb "$root/tests/configs/qnx-proc-match-syntax.conf"
+  sleep 4
+  check_proc syntax
 }
 
 proc_survives_short_lived_processes() {
@@ -237,6 +257,7 @@ fi
 run proc_reports_named_process proc_reports_named_process
 run proc_cpu_increases_for_spinner proc_cpu_increases_for_spinner
 run proc_match_filters_names proc_match_filters_names
+run proc_match_syntax proc_match_syntax
 run proc_survives_short_lived_processes proc_survives_short_lived_processes
 run proc_bad_match_exits proc_bad_match_exits
 exit "$fail"

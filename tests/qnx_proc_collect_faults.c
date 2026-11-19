@@ -8,16 +8,15 @@
 #include "../plugins/in_qnx_proc/in_qnx_proc.h"
 #include "collect_fakes.h"
 
-/* The shipped binary takes regexec from the bundled regex library. These
- * tests leave match unset, so the call is never made. */
-static int unused_regexec(const regex_t *re, const char *s, size_t n,
-                          regmatch_t *m, int flags)
+/* These tests leave match unset, so the regex search is never made. */
+static int unused_regex_match(struct flb_regex *re, unsigned char *s,
+                              size_t n)
 {
-    (void) re; (void) s; (void) n; (void) m; (void) flags;
+    (void) re; (void) s; (void) n;
     assert(!"match is unset in these tests");
     return 0;
 }
-#define regexec unused_regexec
+#define flb_regex_match unused_regex_match
 
 #include "../plugins/in_qnx_proc/in_qnx_proc.c"
 

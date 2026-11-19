@@ -259,7 +259,9 @@ static int emit_one(struct flb_in_qnx_proc *ctx, pid_t pid)
     }
     close(fd);
 
-    if (ctx->have_re && regexec(&ctx->re, name, 0, NULL, 0) != 0) {
+    /* A failed search (below 0) skips the process like a mismatch. */
+    if (ctx->re != NULL &&
+        flb_regex_match(ctx->re, (unsigned char *) name, strlen(name)) <= 0) {
         return 0;
     }
 
@@ -345,7 +347,7 @@ static int in_qnx_proc_collect(struct flb_input_instance *ins,
 }
 
 /* Init already published ctx. Clear it before freeing so a later exit
- * callback does not free the same block or regfree the same expression. */
+ * callback does not free the same block or destroy the same expression. */
 static int init_fail(struct flb_in_qnx_proc *ctx)
 {
     struct flb_input_instance *ins;
@@ -356,9 +358,9 @@ static int init_fail(struct flb_in_qnx_proc *ctx)
         flb_log_event_encoder_destroy(ctx->encoder);
         ctx->encoder = NULL;
     }
-    if (ctx->have_re) {
-        regfree(&ctx->re);
-        ctx->have_re = 0;
+    if (ctx->re != NULL) {
+        flb_regex_destroy(ctx->re);
+        ctx->re = NULL;
     }
     flb_free(ctx);
     return -1;
@@ -388,11 +390,14 @@ static int in_qnx_proc_init(struct flb_input_instance *ins,
         ctx->interval_sec = 1;
     }
     if (ctx->match != NULL && ctx->match[0] != '\0') {
-        if (regcomp(&ctx->re, ctx->match, REG_EXTENDED | REG_NOSUB) != 0) {
+        /* Fluent Bit's own regex helper (Onigmo, Ruby syntax), as in the
+         * grep filter. The bundled Onigmo also exports regcomp, but with its
+         * own flag bits, so QNX <regex.h> flags would be misread. */
+        ctx->re = flb_regex_create(ctx->match);
+        if (ctx->re == NULL) {
             flb_plg_error(ins, "match is not a valid regular expression");
             return init_fail(ctx);
         }
-        ctx->have_re = 1;
     }
 
     ctx->encoder = flb_log_event_encoder_create(FLB_LOG_EVENT_FORMAT_DEFAULT);
@@ -435,8 +440,8 @@ static int in_qnx_proc_exit(void *data, struct flb_config *config)
     if (ctx == NULL) {
         return 0;
     }
-    if (ctx->have_re) {
-        regfree(&ctx->re);
+    if (ctx->re != NULL) {
+        flb_regex_destroy(ctx->re);
     }
     if (ctx->encoder) {
         flb_log_event_encoder_destroy(ctx->encoder);
@@ -459,7 +464,8 @@ static struct flb_config_map config_map[] = {
     {
         FLB_CONFIG_MAP_STR, "match", NULL,
         0, FLB_TRUE, offsetof(struct flb_in_qnx_proc, match),
-        "POSIX extended regular expression applied to the process name"
+        "Regular expression (Ruby syntax, as in the grep filter) applied to "
+        "the process name"
     },
     {
         FLB_CONFIG_MAP_BOOL, "include_self", "false",

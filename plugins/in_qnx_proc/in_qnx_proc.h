@@ -4,9 +4,9 @@
 #include <fluent-bit/flb_info.h>
 #include <fluent-bit/flb_input.h>
 #include <fluent-bit/flb_log_event_encoder.h>
+#include <fluent-bit/flb_regex.h>
 #include <fluent-bit/flb_sds.h>
 
-#include <regex.h>
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -20,8 +20,8 @@ struct flb_in_qnx_proc {
     struct flb_log_event_encoder *encoder;
     int coll_fd;
     struct flb_input_instance *ins;
-    regex_t re;
-    int have_re;
+    /* Compiled match, or NULL when match is unset. */
+    struct flb_regex *re;
     /* Processes already warned about. A process leaves the list after a
      * scan that did not fail on it, so the list holds only current faults. */
     pid_t warned[FLB_QNX_PROC_WARNED_MAX];
