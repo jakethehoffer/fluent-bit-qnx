@@ -2,7 +2,7 @@
 
 [Fluent Bit](https://fluentbit.io/) 5.2.0, the CNCF graduated log and telemetry agent, ported to QNX 8.0, with two new inputs written for QNX. `slog2` reads the QNX system log live. `qnx_proc` reports CPU time and private memory for every process. One script cross-builds it with the QNX SDP 8.0 toolchain, and one script runs a demo in which a QNX 8.0 machine ships its logs and process data to a dashboard on the host.
 
-It runs today on QNX 8.0 x86_64 under QEMU. The latest full check built it from clean, ran 21 tests on the QNX target plus the demo check, and all of them passed ([docs/test-log.txt](docs/test-log.txt)). What is not done is listed once, under [Limits](#limits). Built for the QNX Global Hackathon 2026.
+It runs today on QNX 8.0 x86_64 under QEMU. The latest full check built it from clean, ran 22 tests on the QNX target plus the demo check, and all of them passed ([docs/test-log.txt](docs/test-log.txt)). What is not done is listed once, under [Limits](#limits). Built for the QNX Global Hackathon 2026.
 
 ![QNX fleet dashboard](docs/images/dashboard.png)
 
